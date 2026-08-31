@@ -1,34 +1,38 @@
 import {
-  CalendarDays,
-  ClipboardList,
-  ConciergeBell,
+  Building2,
   FileText,
   LayoutDashboard,
-  MessageSquare,
-  Newspaper,
-  PieChart,
+  Sparkles,
   Users,
 } from "lucide-react";
 
-import { CELEREY_ICON_SRC } from "@/lib/data/celerey";
 import { appConfig } from "@/lib/app-config";
 import type { NavItem } from "@/lib/navigation";
 
 const advisorNavItems: NavItem[] = [
   { label: "Overview", href: appConfig.routes.advisor.dashboard, icon: LayoutDashboard },
   { label: "Clients", href: `${appConfig.routes.advisor.clients}`, icon: Users },
-  { label: "Portfolio", href: `${appConfig.routes.advisor.dashboard}/portfolio`, icon: PieChart },
-  { label: "Sessions", href: `${appConfig.routes.advisor.dashboard}/sessions`, icon: CalendarDays },
+  { label: "Reports", href: `${appConfig.routes.advisor.dashboard}/reports`, icon: FileText },
   {
-    label: "Concierge",
-    href: `${appConfig.routes.advisor.clients}/lois-lane?tab=Concierge`,
-    icon: ConciergeBell,
+    label: "Demo gallery",
+    href: `${appConfig.routes.advisor.dashboard}/demo`,
+    icon: Sparkles,
   },
-  { label: "Tasks", href: `${appConfig.routes.advisor.dashboard}/tasks`, icon: ClipboardList, badge: 8 },
-  { label: "Messages", href: `${appConfig.routes.advisor.dashboard}/messages`, icon: MessageSquare, badge: 3 },
-  { label: "Market Insights", href: `${appConfig.routes.advisor.dashboard}/insights`, icon: Newspaper },
-  { label: "Documents", href: `${appConfig.routes.advisor.dashboard}/documents`, icon: FileText },
-  { label: "Ask Celerey", href: `${appConfig.routes.advisor.dashboard}/celerey`, iconSrc: CELEREY_ICON_SRC },
 ];
 
-export { advisorNavItems };
+const teamNavItem: NavItem = {
+  label: "Team",
+  href: `${appConfig.routes.advisor.dashboard}/team`,
+  icon: Building2,
+};
+
+/** Every wealth manager can manage the shared team and client book. */
+function advisorNavItemsForRole(_role: string): NavItem[] {
+  const items = [...advisorNavItems];
+  const reportsIndex = items.findIndex((item) => item.label === "Reports");
+  const insertAt = reportsIndex === -1 ? items.length : reportsIndex + 1;
+  items.splice(insertAt, 0, teamNavItem);
+  return items;
+}
+
+export { advisorNavItems, advisorNavItemsForRole };

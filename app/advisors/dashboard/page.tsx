@@ -1,10 +1,8 @@
 import Link from "next/link";
-import { Users, ClipboardList, FileText, MessageSquare, Calendar } from "lucide-react";
-import type { ActivityType } from "@/lib/data/advisor-overview";
+import { ChevronRight, UserPlus, Users } from "lucide-react";
 
-import { DashboardGrid, PageShell } from "@/components/layout/page-shell";
+import { PageShell } from "@/components/layout/page-shell";
 import { buttonVariants } from "@/components/ui/button";
-import { ClientDate } from "@/components/ui/client-date";
 import {
   DashCard,
   DashCardContent,
@@ -14,32 +12,48 @@ import {
 } from "@/components/ui/dash-card";
 import { KpiItem, KpiStrip } from "@/components/ui/kpi-strip";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { H1, H2, Muted, TextSmall } from "@/components/ui/typography";
-import { advisorOverview } from "@/lib/data/advisor-overview";
+import { H1, Muted, TextSmall } from "@/components/ui/typography";
+import { listClientsWithPortfolio } from "@/lib/wealth/queries";
+import { requireAdvisor } from "@/lib/wealth/session";
+import { formatUsd } from "@/lib/wealth/constants";
 import { cn } from "@/lib/utils";
 
-function formatGBP(n: number) {
-  if (n >= 1_000_000) return `£${(n / 1_000_000).toFixed(1)}m`;
-  return `£${n.toLocaleString("en-GB")}`;
-}
-
-const ACTIVITY_ICON: Record<ActivityType, React.ElementType> = {
-  document: FileText,
-  review: ClipboardList,
-  request: MessageSquare,
-  meeting: Calendar,
-  note: MessageSquare,
+const STATUS_LABEL: Record<string, string> = {
+  onboarding: "Onboarding",
+  active: "Active",
+  review_due: "Review due",
+  inactive: "Inactive",
 };
 
-export default function AdvisorDashboardPage() {
-  const { recentActivity, upcomingSessions } = advisorOverview;
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+export default async function AdvisorDashboardPage() {
+  const session = await requireAdvisor();
+  const clients = await listClientsWithPortfolio(null);
+
+  const totalAum = clients.reduce((sum, c) => sum + c.aum, 0);
+  const activeCount = clients.filter((c) => c.status === "active").length;
+  const reviewDue = clients.filter((c) => c.status === "review_due").length;
+  const onboarding = clients.filter((c) => c.status === "onboarding").length;
+  const firstName = session.profile.full_name?.split(" ")[0] ?? "there";
+  const recentClients = [...clients]
+    .sort((a, b) => b.aum - a.aum)
+    .slice(0, 6);
 
   return (
     <PageShell className="flex flex-col gap-(--spacing-section)">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-1">
-          <H1>Good morning, Jude</H1>
-          <ClientDate />
+          <p className="text-body-sm font-medium text-brand-accent">Prosper with Purpose</p>
+          <H1>Good morning, {firstName}</H1>
+          <Muted>Your book at a glance</Muted>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
@@ -47,14 +61,11 @@ export default function AdvisorDashboardPage() {
             className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
           >
             <Users className="size-4" />
-            View all clients
+            All clients
           </Link>
-          <Link
-            href="/advisors/dashboard/tasks"
-            className={cn(buttonVariants({ size: "sm" }))}
-          >
-            <ClipboardList className="size-4" />
-            Open tasks
+          <Link href="/advisors/dashboard/clients/new" className={cn(buttonVariants({ size: "sm" }))}>
+            <UserPlus className="size-4" />
+            Add client
           </Link>
         </div>
       </header>
@@ -62,113 +73,95 @@ export default function AdvisorDashboardPage() {
       <KpiStrip>
         <KpiItem
           label="Total AUM"
-          value={formatGBP(advisorOverview.totalAum)}
-          change="+2.8% this quarter"
+          value={formatUsd(totalAum)}
+          change={`${clients.length} clients`}
+          trend="neutral"
+        />
+        <KpiItem
+          label="Active clients"
+          value={String(activeCount)}
+          change={`${onboarding} onboarding, ${reviewDue} review due`}
           trend="up"
         />
         <KpiItem
-          label="Active Clients"
-          value={String(advisorOverview.activeClients)}
-          change={`${advisorOverview.onboarding} onboarding, ${advisorOverview.reviewDue} pending review`}
-          trend="neutral"
+          label="Review due"
+          value={String(reviewDue)}
+          change="Requires attention"
+          trend={reviewDue > 0 ? "down" : "neutral"}
         />
         <KpiItem
-          label="Open Tasks"
-          value={String(advisorOverview.openTasks)}
-          change="4 due this week"
+          label="Onboarding"
+          value={String(onboarding)}
+          change="New relationships"
           trend="neutral"
-        />
-        <KpiItem
-          label="Attention Required"
-          value={String(advisorOverview.attentionRequired)}
-          change="Overdue reviews, unsigned documents"
-          trend="down"
         />
       </KpiStrip>
 
-      <DashboardGrid>
-        <DashCard className="lg:col-span-2">
-          <DashCardHeader>
-            <div>
-              <DashCardTitle>Recent Client Activity</DashCardTitle>
-              <DashCardDescription>
-                Latest updates across your book of business
-              </DashCardDescription>
+      <DashCard>
+        <DashCardHeader>
+          <div>
+            <DashCardTitle>Clients by portfolio value</DashCardTitle>
+            <DashCardDescription>Latest statement values across your book</DashCardDescription>
+          </div>
+          <Link
+            href="/advisors/dashboard/clients"
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-xs")}
+          >
+            View all
+          </Link>
+        </DashCardHeader>
+        <DashCardContent className="gap-0 p-0">
+          {recentClients.length === 0 ? (
+            <div className="px-6 py-8 text-center">
+              <Muted>No clients yet. Add your first client to get started.</Muted>
+              <Link
+                href="/advisors/dashboard/clients/new"
+                className={cn(buttonVariants({ size: "sm" }), "mt-4")}
+              >
+                Add client
+              </Link>
             </div>
-            <Link
-              href="/advisors/dashboard/clients"
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "sm" }),
-                "shrink-0 text-xs"
-              )}
-            >
-              View all
-            </Link>
-          </DashCardHeader>
-          <DashCardContent className="gap-4">
-            {recentActivity.map((item) => {
-              const Icon = ACTIVITY_ICON[item.type];
-              return (
-                <Link
-                  key={item.client + item.time}
-                  href={`/advisors/dashboard/clients/${item.clientId}`}
-                  className="flex items-start gap-3 border-b border-border/60 pb-4 transition-colors hover:text-foreground last:border-0 last:pb-0"
-                >
-                  <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted">
-                    <Icon className="size-3.5 text-muted-foreground" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <TextSmall className="font-medium">{item.client}</TextSmall>
-                    <TextSmall className="text-muted-foreground">
-                      {item.action}
-                    </TextSmall>
-                  </div>
-                  <Muted className="shrink-0">{item.time}</Muted>
-                </Link>
-              );
-            })}
-          </DashCardContent>
-        </DashCard>
-
-        <DashCard>
-          <DashCardHeader>
-            <div>
-              <DashCardTitle>Upcoming Sessions</DashCardTitle>
-              <DashCardDescription>Next 2 weeks</DashCardDescription>
-            </div>
-            <Link
-              href="/advisors/dashboard/sessions"
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "sm" }),
-                "shrink-0 text-xs"
-              )}
-            >
-              View all
-            </Link>
-          </DashCardHeader>
-          <DashCardContent className="gap-4">
-            {upcomingSessions.map((session) => (
-              <div
-                key={session.clientName + session.date}
-                className="flex items-start gap-3 border-b border-border/60 pb-4 last:border-0 last:pb-0"
+          ) : (
+            recentClients.map((client) => (
+              <Link
+                key={client.id}
+                href={`/advisors/dashboard/clients/${client.id}`}
+                className="flex items-center gap-3 border-b border-border/60 px-6 py-4 transition-colors last:border-0 hover:bg-muted/40"
               >
                 <Avatar size="sm">
                   <AvatarFallback className="bg-muted text-xs font-medium">
-                    {session.clientInitials}
+                    {initials(client.full_name)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                  <TextSmall className="font-medium">{session.clientName}</TextSmall>
-                  <TextSmall className="text-muted-foreground">{session.type}</TextSmall>
+                  <TextSmall className="font-medium">{client.full_name}</TextSmall>
                   <Muted>
-                    {session.date} at {session.time}
+                    {STATUS_LABEL[client.status] ?? client.status}
+                    {client.location ? ` · ${client.location}` : ""}
                   </Muted>
                 </div>
-              </div>
-            ))}
-          </DashCardContent>
-        </DashCard>
-      </DashboardGrid>
+                <TextSmall className="font-medium">{formatUsd(client.aum)}</TextSmall>
+                <ChevronRight className="size-4 text-muted-foreground" />
+              </Link>
+            ))
+          )}
+        </DashCardContent>
+      </DashCard>
+
+      <DashCard>
+        <DashCardHeader>
+          <DashCardTitle>Demo gallery</DashCardTitle>
+          <DashCardDescription>Sample screens with placeholder data</DashCardDescription>
+        </DashCardHeader>
+        <DashCardContent>
+          <Muted className="mb-4">
+            Tasks, sessions, book rollup charts, and Celerey demos live under the demo gallery.
+          </Muted>
+          <Link href="/advisors/dashboard/demo" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+            Open demo gallery
+          </Link>
+        </DashCardContent>
+      </DashCard>
     </PageShell>
   );
 }

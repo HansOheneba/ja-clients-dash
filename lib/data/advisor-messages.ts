@@ -174,7 +174,7 @@ const advisorMessageThreads: AdvisorMessageThread[] = [
       {
         id: "m15",
         content:
-          "Welcome to JA Group, Theo. We are thrilled to have you on board. If you have any questions before Thursday, feel free to send them through.",
+          "Welcome to JA Wealth, Theo. We are thrilled to have you on board. If you have any questions before Thursday, feel free to send them through.",
         sentAt: "15 Jun 2026, 10:30 AM",
         isFromAdvisor: true,
       },

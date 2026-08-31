@@ -21,10 +21,10 @@ export default function AuthLayout({
         {/* Logo top-left */}
         <div className="shrink-0">
           <Image
-            src="/logos/JAG_Primary_logo_white.png"
-            alt="JA Group"
-            width={110}
-            height={36}
+            src="/logos/JA_Wealth_wht.png"
+            alt="JA Wealth"
+            width={132}
+            height={23}
             className="object-contain"
             priority
           />

@@ -87,7 +87,7 @@ const layoutTokens = [
   { token: "--spacing-section", value: "2rem", use: "Section vertical gap" },
   { token: "--spacing-grid", value: "0.75rem", use: "Card grid gap" },
   { token: "--card-min-width", value: "17.5rem", use: "Card min before stack" },
-  { token: "--radius-card", value: "1.25rem", use: "Card corner radius" },
+  { token: "--radius-card", value: "0.75rem", use: "Card corner radius" },
 ];
 
 function ColorSwatch({
@@ -130,7 +130,7 @@ function DesignSystemPreview() {
     <DashboardShell>
       <PageShell className="flex flex-col gap-(--spacing-section)">
         <PageSection>
-          <Overline>JA Group Design System</Overline>
+          <Overline>JA Wealth Design System</Overline>
           <Display>Design System Foundation</Display>
           <Lead>
             Living reference for every token and component.

@@ -42,6 +42,47 @@ type AdvisorClient = {
 
 const clients: AdvisorClient[] = [
   {
+    id: "john-doe",
+    name: "John Doe",
+    initials: "JD",
+    email: "john.doe@example.com",
+    phone: "+1 310 555 0100",
+    location: "Beverly Hills, CA",
+    status: "Active",
+    flags: [],
+    lastContact: "Today",
+    onboardedDate: "Jan 2018",
+    portfolio: {
+      total: 2780521,
+      ytd: 8.1,
+      inceptionValue: 1600000,
+      assets: [
+        { name: "Income Portfolio",  value: 642000,  allocation: 23, ytd: "+8.1%",  color: "#b2936b" },
+        { name: "Growth Portfolio",  value: 498000,  allocation: 18, ytd: "+13.2%", color: "#202356" },
+        { name: "Venture Portfolio", value: 1605000, allocation: 58, ytd: "+9.8%",  color: "#829850" },
+        { name: "Cash On Account",   value: 259521,  allocation: 9,  ytd: "N/A",    color: "#c4b5a0" },
+      ],
+      history: [
+        2200000, 2280000, 2401521, 2480000, 2550000, 2581521,
+        2595000, 2608000, 2615521, 2622000, 2638000, 2648521,
+        2659000, 2672000, 2681521, 2694000, 2706000, 2714521,
+        2728000, 2739000, 2747521, 2756000, 2768000, 2780521,
+      ].map((v, i) => ({
+        month: months[i % months.length],
+        value: v,
+      })),
+    },
+    legacyProgress: 40,
+    legacyStatus: "Estate plan in review",
+    pendingRequests: 0,
+    openTasks: 1,
+    recentActivity: [
+      { title: "Q2 2026 investment report generated", date: "15 Jul 2026", type: "document" },
+      { title: "Statement data updated for Q2 2026", date: "1 Jul 2026", type: "note" },
+    ],
+    notes: "Sample wealth client with quarterly statement data through Q2 2026. Use Statement data to edit figures or Reports to generate PDFs.",
+  },
+  {
     id: "lois-lane",
     name: "Lois Lane",
     initials: "LL",

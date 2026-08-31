@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useTransition } from "react";
 import { Bell, LogOut, User } from "lucide-react";
 
+import { signOut } from "@/app/auth/actions";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,8 +31,12 @@ function DashboardTopBarActions({
   userInitials = "U",
   profileHref,
 }: DashboardTopBarActionsProps) {
+  const [pending, startTransition] = useTransition();
+
   function handleLogout() {
-    window.location.href = "/";
+    startTransition(() => {
+      void signOut();
+    });
   }
 
   return (
@@ -68,12 +74,16 @@ function DashboardTopBarActions({
             {profileHref && (
               <DropdownMenuItem render={<Link href={profileHref} />}>
                 <User className="size-4" />
-                View profile
+                Settings
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem variant="destructive" onClick={handleLogout}>
+            <DropdownMenuItem
+              variant="destructive"
+              disabled={pending}
+              onClick={handleLogout}
+            >
               <LogOut className="size-4" />
-              Log out
+              {pending ? "Signing out..." : "Log out"}
             </DropdownMenuItem>
           </DropdownMenuGroup>
         </DropdownMenuContent>

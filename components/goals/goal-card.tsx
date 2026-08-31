@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   Building2,
+  Flag,
+  Gift,
   Globe,
   GraduationCap,
   HeartHandshake,
@@ -49,6 +51,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   HeartHandshake,
   Shield,
   TrendingUp,
+  Gift,
+  Flag,
 };
 
 const STATUS_CONFIG: Record<
@@ -73,14 +77,19 @@ type GoalCardProps = {
   formatValue: (usd: number, opts?: { compact?: boolean }) => string;
   /** Advisor only: opens edit sheet (provided by AdvisorGoalCard wrapper). */
   onEdit?: () => void;
+  /** Advisor only: remove this goal. */
+  onRemove?: () => void;
 };
 
-function GoalCard({ goal, variant, formatValue, onEdit }: GoalCardProps) {
+function GoalCard({ goal, variant, formatValue, onEdit, onRemove }: GoalCardProps) {
   const [noteOpen, setNoteOpen] = useState(false);
 
   const cfg = STATUS_CONFIG[goal.status];
   const GoalIcon = ICON_MAP[goal.iconName] ?? Landmark;
-  const pct = Math.min(100, Math.round((goal.currentUSD / goal.targetUSD) * 100));
+  const pct =
+    goal.targetUSD > 0
+      ? Math.min(100, Math.round((goal.currentUSD / goal.targetUSD) * 100))
+      : 0;
   const probTone =
     goal.probabilityPct >= 80 ? PROBABILITY_TONE.high
     : goal.probabilityPct >= 65 ? PROBABILITY_TONE.mid
@@ -128,7 +137,10 @@ function GoalCard({ goal, variant, formatValue, onEdit }: GoalCardProps) {
                     Edit goal
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-destructive focus:text-destructive">
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={onRemove}
+                  >
                     <Trash2 className="size-4" />
                     Remove
                   </DropdownMenuItem>

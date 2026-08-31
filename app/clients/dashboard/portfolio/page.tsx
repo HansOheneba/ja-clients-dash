@@ -2,8 +2,9 @@
 
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
-import { PageShell } from "@/components/layout/page-shell";
 import { AllocationPieChart, AssetAreaChart } from "@/components/charts/asset-charts";
+import { PageShell } from "@/components/layout/page-shell";
+import { ClientReportsPanel } from "@/components/reports/client-reports-panel";
 import {
   DashCard,
   DashCardContent,
@@ -12,13 +13,15 @@ import {
   DashCardTitle,
 } from "@/components/ui/dash-card";
 import { KpiItem, KpiStrip } from "@/components/ui/kpi-strip";
-import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { H1, Muted, TextSmall } from "@/components/ui/typography";
 import { useCurrency } from "@/lib/currency-context";
-import { assetClasses, portfolioSummary } from "@/lib/data/portfolio";
+import { useJaPortfolio } from "@/lib/hooks/use-ja-portfolio";
+import { BUCKET_COLORS } from "@/lib/wealth/constants";
 import { cn } from "@/lib/utils";
 
-function ChangeCell({ value }: { value: number }) {
+function ChangeCell({ value }: { value: number | null }) {
+  if (value == null) return <span className="text-xs text-muted-foreground">N/A</span>;
   const Icon = value === 0 ? Minus : value > 0 ? TrendingUp : TrendingDown;
   return (
     <span className={cn(
@@ -28,144 +31,165 @@ function ChangeCell({ value }: { value: number }) {
       value === 0 && "text-muted-foreground"
     )}>
       <Icon className="size-3 shrink-0" />
-      {value > 0 ? "+" : ""}{value}%
+      {value > 0 ? "+" : ""}{value.toFixed(1)}%
     </span>
   );
 }
 
 export default function ClientPortfolioPage() {
   const { format } = useCurrency();
-  const { totalUSD, inceptionCostBasisUSD, bestAssetClassYtd, bestAssetClassYtdPct, topHolding, topHoldingReturnPct } = portfolioSummary;
+  const { data, allocationSlices, loading, error } = useJaPortfolio();
+
+  if (loading) {
+    return (
+      <PageShell className="flex flex-col gap-(--spacing-section)">
+        <header className="flex flex-col gap-1">
+          <Skeleton className="h-9 w-40" />
+          <Skeleton className="h-4 w-96 max-w-full" />
+        </header>
+
+        <KpiStrip>
+          <KpiItem label="Total Portfolio" value="" loading />
+          <KpiItem label="Period Gain" value="" loading />
+          <KpiItem label="Best Portfolio" value="" loading />
+          <KpiItem label="Cash On Account" value="" loading />
+        </KpiStrip>
+
+        <div className="grid grid-cols-1 gap-(--spacing-grid) lg:grid-cols-3">
+          <DashCard>
+            <DashCardHeader>
+              <Skeleton className="h-5 w-36" />
+              <Skeleton className="mt-2 h-3 w-48" />
+            </DashCardHeader>
+            <DashCardContent>
+              <Skeleton className="mx-auto size-40 rounded-full" />
+            </DashCardContent>
+          </DashCard>
+          <DashCard className="lg:col-span-2">
+            <DashCardHeader>
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="mt-2 h-3 w-44" />
+            </DashCardHeader>
+            <DashCardContent>
+              <Skeleton className="h-48 w-full rounded-lg" />
+            </DashCardContent>
+          </DashCard>
+        </div>
+
+        <DashCard>
+          <DashCardHeader>
+            <Skeleton className="h-5 w-36" />
+            <Skeleton className="mt-2 h-3 w-52" />
+          </DashCardHeader>
+          <DashCardContent className="flex flex-col gap-3">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Skeleton key={index} className="h-10 w-full" />
+            ))}
+          </DashCardContent>
+        </DashCard>
+      </PageShell>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <PageShell className="flex flex-col gap-(--spacing-section)">
+        <H1>My Portfolio</H1>
+        <Muted>Could not load portfolio. Run the SQL in supabase/manual/001_full_setup.sql and check .env.local.</Muted>
+        <TextSmall className="text-destructive">{error}</TextSmall>
+      </PageShell>
+    );
+  }
+
+  const bestBucket = [...data.buckets]
+    .filter((b) => b.ytdPct != null && b.id !== "coa")
+    .sort((a, b) => (b.ytdPct ?? 0) - (a.ytdPct ?? 0))[0];
 
   return (
     <PageShell className="flex flex-col gap-(--spacing-section)">
       <header className="flex flex-col gap-1">
         <H1>My Portfolio</H1>
-        <Muted>Holdings across equities, fixed income, commodities and cash. All values in selected currency.</Muted>
+        <Muted>JA managed portfolios: Income, Growth, Venture, Treasury, and Cash on Account.</Muted>
       </header>
 
       <KpiStrip>
-        <KpiItem label="Total Portfolio"   value={format(totalUSD)}                         change={`+${(((totalUSD - inceptionCostBasisUSD) / inceptionCostBasisUSD) * 100).toFixed(1)}% since inception`} trend="up" />
-        <KpiItem label="Unrealised Gain"   value={format(totalUSD - inceptionCostBasisUSD)} change="vs inception value" trend="up" />
-        <KpiItem label="Best Asset Class"  value={bestAssetClassYtd}                        change={`+${bestAssetClassYtdPct}% YTD`} trend="up" />
-        <KpiItem label="Top Holding"       value={topHolding}                               change={`+${topHoldingReturnPct}% total return`} trend="up" />
+        <KpiItem label="Total Portfolio" value={format(data.totalUSD)} change={`+${data.periodReturnPct.toFixed(1)}% this period`} trend="up" />
+        <KpiItem label="Period Gain" value={format(data.periodGainUsd)} change="Statement period" trend={data.periodGainUsd >= 0 ? "up" : "down"} />
+        <KpiItem label="Best Portfolio" value={bestBucket?.label ?? "N/A"} change={bestBucket?.ytdPct != null ? `+${bestBucket.ytdPct.toFixed(1)}% YTD` : ""} trend="up" />
+        <KpiItem label="Cash On Account" value={format(data.cashUSD ?? 0)} change="Uninvested cash" trend="neutral" />
       </KpiStrip>
 
-      {/* Allocation + sparklines */}
       <div className="grid grid-cols-1 gap-(--spacing-grid) lg:grid-cols-3">
         <DashCard>
           <DashCardHeader>
             <div>
-              <DashCardTitle>Asset Allocation</DashCardTitle>
-              <DashCardDescription>By class, % of portfolio</DashCardDescription>
+              <DashCardTitle>Portfolio Allocation</DashCardTitle>
+              <DashCardDescription>By JA bucket, % of total</DashCardDescription>
             </div>
           </DashCardHeader>
           <DashCardContent>
-            <AllocationPieChart data={assetClasses.map(c => ({ name: c.label, value: c.allocationPct, color: c.color }))} />
-            <div className="mt-2 flex flex-col gap-2">
-              {assetClasses.map(c => (
-                <div key={c.id} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
-                    <TextSmall>{c.label}</TextSmall>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <TextSmall className="text-muted-foreground">{format(c.totalUSD, { compact: true })}</TextSmall>
-                    <TextSmall className="w-8 text-right font-medium">{c.allocationPct}%</TextSmall>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <AllocationPieChart data={allocationSlices} />
           </DashCardContent>
         </DashCard>
 
         <DashCard className="lg:col-span-2">
           <DashCardHeader>
             <div>
-              <DashCardTitle>Growth by Asset Class</DashCardTitle>
-              <DashCardDescription>Jul 2025 to Jun 2026</DashCardDescription>
+              <DashCardTitle>Value Over Time</DashCardTitle>
+              <DashCardDescription>Total portfolio trajectory</DashCardDescription>
             </div>
           </DashCardHeader>
           <DashCardContent>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {assetClasses.map(c => (
-                <div key={c.id}>
-                  <div className="mb-1 flex items-center gap-1.5">
-                    <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
-                    <Muted>{c.label}</Muted>
-                  </div>
-                  <AssetAreaChart data={c.history} color={c.color} gradientId={c.gradientId} positive={c.ytdPct >= 0} />
-                  <TextSmall className="mt-1 font-medium">{format(c.totalUSD, { compact: true })}</TextSmall>
-                  <ChangeCell value={c.ytdPct} />
-                </div>
-              ))}
-            </div>
+            <AssetAreaChart
+              data={data.history}
+              color="#202356"
+              gradientId="ja-portfolio-total"
+              height={220}
+              yAxisLabel="Value (USD)"
+              seriesLabel="Portfolio value"
+            />
           </DashCardContent>
         </DashCard>
       </div>
 
-      {/* Holdings tables per asset class */}
-      {assetClasses.map(cls => (
-        <DashCard key={cls.id}>
-          <DashCardHeader>
-            <div className="flex items-center gap-3">
-              <span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: cls.color }} />
-              <div>
-                <DashCardTitle>{cls.label}</DashCardTitle>
-                <DashCardDescription>{format(cls.totalUSD)} · {cls.allocationPct}% of portfolio</DashCardDescription>
-              </div>
-            </div>
-            <Badge variant={cls.ytdPct >= 0 ? "secondary" : "outline"}>
-              {cls.ytdPct > 0 ? "+" : ""}{cls.ytdPct}% YTD
-            </Badge>
-          </DashCardHeader>
+      <DashCard>
+        <DashCardHeader>
+          <DashCardTitle>Portfolio Buckets</DashCardTitle>
+          <DashCardDescription>Current values and period performance</DashCardDescription>
+        </DashCardHeader>
+        <DashCardContent className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr className="border-b text-left text-muted-foreground">
+                <th className="pb-3 pr-4 font-medium">Bucket</th>
+                <th className="pb-3 pr-4 font-medium text-right">Value</th>
+                <th className="pb-3 pr-4 font-medium text-right">Allocation</th>
+                <th className="pb-3 font-medium text-right">YTD</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.buckets.map((bucket) => (
+                <tr key={bucket.id} className="border-b border-border/50 last:border-0">
+                  <td className="py-3 pr-4">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="size-2.5 rounded-full"
+                        style={{ backgroundColor: BUCKET_COLORS[bucket.id as keyof typeof BUCKET_COLORS] }}
+                      />
+                      <TextSmall className="font-medium">{bucket.label}</TextSmall>
+                    </div>
+                  </td>
+                  <td className="py-3 pr-4 text-right font-numeric">{format(bucket.totalUSD)}</td>
+                  <td className="py-3 pr-4 text-right font-numeric">{bucket.allocationPct.toFixed(1)}%</td>
+                  <td className="py-3 text-right"><ChangeCell value={bucket.ytdPct} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </DashCardContent>
+      </DashCard>
 
-          {/* Horizontally scrollable on small screens */}
-          <DashCardContent className="p-0">
-            <div className="overflow-x-auto">
-              <div className="min-w-[520px]">
-                {/* Column headings */}
-                <div className="grid grid-cols-[1fr_120px_80px_110px] gap-x-4 border-b border-border/40 px-6 py-2">
-                  <Muted>Name</Muted>
-                  <Muted className="text-right">Value</Muted>
-                  <Muted className="text-right">Day</Muted>
-                  <Muted className="text-right">Total return</Muted>
-                </div>
-                {cls.holdings.map((h, i) => (
-                  <div
-                    key={h.ticker}
-                    className={cn(
-                      "grid grid-cols-[1fr_120px_80px_110px] items-center gap-x-4 px-6 py-3.5",
-                      i < cls.holdings.length - 1 && "border-b border-border/40"
-                    )}
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-baseline gap-2">
-                        <span className="font-numeric text-sm font-semibold">{h.ticker}</span>
-                        <Muted className="truncate">{h.name}</Muted>
-                      </div>
-                      {(h.qty || h.price) && (
-                        <Muted className="text-xs">
-                          {h.qty ? `${h.qty} · ${h.price}` : h.price}
-                        </Muted>
-                      )}
-                    </div>
-                    <TextSmall className="text-right font-numeric font-medium">
-                      {format(h.valueUSD)}
-                    </TextSmall>
-                    <div className="text-right">
-                      <ChangeCell value={h.dayChangePct} />
-                    </div>
-                    <div className="text-right">
-                      <ChangeCell value={h.totalReturnPct} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </DashCardContent>
-        </DashCard>
-      ))}
+      <ClientReportsPanel variant="compact" />
     </PageShell>
   );
 }

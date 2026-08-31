@@ -1,0 +1,4 @@
+project_id = "mmubhwyxszonhnpyeosy"
+
+[api]
+schemas = ["public", "wealth"]

@@ -134,7 +134,7 @@ function OverviewContent() {
               <div>
                 <DashCardTitle>Recent Activity</DashCardTitle>
                 <DashCardDescription>
-                  Latest updates across your JA Group services
+                  Latest updates across your JA Wealth services
                 </DashCardDescription>
               </div>
             </DashCardHeader>

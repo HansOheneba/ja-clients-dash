@@ -17,7 +17,7 @@ export const marketInsights: MarketInsight[] = [
   {
     id: "i1",
     type: "commentary",
-    title: "JA Group Q2 2026 Market Outlook",
+    title: "JA Wealth Q2 2026 Market Outlook",
     date: "16 Jun 2026",
     readTimeMin: 6,
     preview: "The Fed's pivot signal, combined with subdued inflation data, has strengthened the case for fixed income duration. We remain cautiously constructive on global equities, with a preference for quality and value over momentum.",

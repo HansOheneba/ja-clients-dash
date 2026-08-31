@@ -87,6 +87,7 @@ export const PORTAL_MANIFEST = {
       "lib/dashboard-theme.ts",
       "lib/app-config.ts",
       "lib/api/domain",
+      "lib/celerey",
     ],
     libData: [
       "lib/data/portfolio.ts",

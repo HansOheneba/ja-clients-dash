@@ -10,17 +10,20 @@ export type PortalMode = "dual" | "client" | "advisor";
 export const appConfig = {
   portal: (process.env.NEXT_PUBLIC_PORTAL ?? "dual") as PortalMode,
 
-  routes: {
+    routes: {
     client: {
       dashboard: "/clients/dashboard",
       messages: "/clients/dashboard/messages",
       concierge: "/clients/dashboard/concierge",
       profile: "/clients/dashboard/profile",
+      settings: "/clients/dashboard/settings",
+      goals: "/clients/dashboard/goals",
     },
     advisor: {
       dashboard: "/advisors/dashboard",
       clients: "/advisors/dashboard/clients",
-      profile: "/advisors/dashboard/profile",
+      profile: "/advisors/dashboard/settings",
+      settings: "/advisors/dashboard/settings",
     },
   },
 } as const;

@@ -1,23 +1,29 @@
-"use client";
+import { AdvisorShell } from "@/components/advisors/advisor-shell";
+import { ADVISOR_ONBOARDING_PATH } from "@/lib/auth/dashboard-routes";
+import { getAdvisorById } from "@/lib/wealth/queries";
+import { requireAdvisor } from "@/lib/wealth/session";
+import { redirect } from "next/navigation";
 
-import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { advisorNavItems } from "@/lib/advisor-navigation";
-
-export default function AdvisorDashboardLayout({
+export default async function AdvisorDashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await requireAdvisor();
+
+  if (session.profile.advisor_id) {
+    const advisor = await getAdvisorById(session.profile.advisor_id);
+    if (advisor && !advisor.onboarding_completed_at) {
+      redirect(ADVISOR_ONBOARDING_PATH);
+    }
+  }
+
   return (
-    <DashboardShell
-      navItems={advisorNavItems}
-      basePath="/advisors/dashboard"
-      accountLabel="Advisor account"
-      userName="Jude Addo"
-      userInitials="JA"
-      profileHref="/advisors/dashboard/profile"
+    <AdvisorShell
+      userName={session.profile.full_name ?? "Wealth manager"}
+      role={session.profile.role}
     >
       {children}
-    </DashboardShell>
+    </AdvisorShell>
   );
 }

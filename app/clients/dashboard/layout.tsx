@@ -1,28 +1,17 @@
-"use client";
+import { ClientDashboardLayoutClient } from "@/app/clients/dashboard/layout-client";
+import { requireClient } from "@/lib/wealth/session";
 
-import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { CurrencyProvider } from "@/lib/currency-context";
-import { clientNavItems } from "@/lib/client-navigation";
-import { clientProfile } from "@/lib/data/profile";
-
-export default function ClientDashboardLayout({
+export default async function ClientDashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await requireClient();
+  const initialName = session.profile.full_name ?? "Client";
+
   return (
-    <CurrencyProvider>
-      <DashboardShell
-        navItems={clientNavItems}
-        basePath="/clients/dashboard"
-        accountLabel="Client account"
-        showCurrencyToggle
-        userName={clientProfile.fullName}
-        userInitials={clientProfile.initials}
-        profileHref="/clients/dashboard/profile"
-      >
-        {children}
-      </DashboardShell>
-    </CurrencyProvider>
+    <ClientDashboardLayoutClient initialName={initialName}>
+      {children}
+    </ClientDashboardLayoutClient>
   );
 }

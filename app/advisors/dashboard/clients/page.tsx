@@ -14,25 +14,41 @@ import { Badge } from "@/components/ui/badge";
 import { H1, TextSmall, Muted } from "@/components/ui/typography";
 import { KpiItem, KpiStrip } from "@/components/ui/kpi-strip";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { clients } from "@/lib/advisor-clients-data";
+import { listClientsWithPortfolio } from "@/lib/wealth/queries";
+import { requireAdvisor } from "@/lib/wealth/session";
+import { formatUsd } from "@/lib/wealth/constants";
 
-const totalAum = clients.reduce((s, c) => s + c.portfolio.total, 0);
-const activeCount = clients.filter((c) => c.status === "Active").length;
-const reviewDue = clients.filter((c) => c.status === "Review due").length;
-const onboarding = clients.filter((c) => c.status === "Onboarding").length;
+const STATUS_LABEL: Record<string, string> = {
+  onboarding: "Onboarding",
+  active: "Active",
+  review_due: "Review due",
+  inactive: "Inactive",
+};
 
-function formatGBP(n: number) {
-  if (n >= 1_000_000) return `£${(n / 1_000_000).toFixed(1)}m`;
-  return `£${n.toLocaleString("en-GB")}`;
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
 }
 
-export default function AdvisorClientsPage() {
+export default async function AdvisorClientsPage() {
+  const session = await requireAdvisor();
+  const clients = await listClientsWithPortfolio(null);
+
+  const totalAum = clients.reduce((sum, c) => sum + c.aum, 0);
+  const activeCount = clients.filter((c) => c.status === "active").length;
+  const reviewDue = clients.filter((c) => c.status === "review_due").length;
+  const onboarding = clients.filter((c) => c.status === "onboarding").length;
+
   return (
     <PageShell className="flex flex-col gap-(--spacing-section)">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-1">
           <H1>Clients</H1>
-          <Muted>Your active book of business</Muted>
+          <Muted>Your book of business</Muted>
         </div>
         <Link
           href="/advisors/dashboard/clients/new"
@@ -46,7 +62,7 @@ export default function AdvisorClientsPage() {
       <KpiStrip>
         <KpiItem
           label="Total AUM"
-          value={`£${(totalAum / 1_000_000).toFixed(1)}m`}
+          value={formatUsd(totalAum)}
           change={`${clients.length} clients`}
           trend="neutral"
         />
@@ -57,10 +73,10 @@ export default function AdvisorClientsPage() {
           trend="up"
         />
         <KpiItem
-          label="Review Due"
+          label="Review due"
           value={String(reviewDue)}
           change="Requires attention"
-          trend="down"
+          trend={reviewDue > 0 ? "down" : "neutral"}
         />
         <KpiItem
           label="Onboarding"
@@ -73,9 +89,11 @@ export default function AdvisorClientsPage() {
       <DashCard>
         <DashCardHeader>
           <div>
-            <DashCardTitle>All Clients</DashCardTitle>
+            <DashCardTitle>All clients</DashCardTitle>
             <DashCardDescription>
-              {clients.length} clients. Click a row to view the full profile.
+              {clients.length === 0
+                ? "Add your first client to start managing portfolios."
+                : `${clients.length} clients. Open a row to edit portfolio data and generate reports.`}
             </DashCardDescription>
           </div>
         </DashCardHeader>
@@ -88,31 +106,28 @@ export default function AdvisorClientsPage() {
             >
               <Avatar size="sm">
                 <AvatarFallback className="bg-muted text-xs font-medium">
-                  {client.initials}
+                  {initials(client.full_name)}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
-                <TextSmall className="font-medium">{client.name}</TextSmall>
+                <TextSmall className="font-medium">{client.full_name}</TextSmall>
                 <Muted>
-                  {formatGBP(client.portfolio.total)} AUM · {client.location} · Last contact {client.lastContact}
+                  {formatUsd(client.aum)} AUM
+                  {client.location ? ` · ${client.location}` : ""}
+                  {` · ${client.client_number}`}
                 </Muted>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {client.flags.map((flag) => (
-                  <Badge key={flag} variant="outline" className="hidden sm:inline-flex">
-                    {flag}
-                  </Badge>
-                ))}
                 <Badge
                   variant={
-                    client.status === "Active"
+                    client.status === "active"
                       ? "secondary"
-                      : client.status === "Onboarding"
-                      ? "default"
-                      : "outline"
+                      : client.status === "onboarding"
+                        ? "default"
+                        : "outline"
                   }
                 >
-                  {client.status}
+                  {STATUS_LABEL[client.status] ?? client.status}
                 </Badge>
                 <ChevronRight className="size-4 text-muted-foreground" />
               </div>

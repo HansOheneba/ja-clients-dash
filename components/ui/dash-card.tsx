@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { numericVariants } from "@/components/ui/typography";
 
 const dashCardVariants = cva(
-  "flex h-full min-h-0 w-full min-w-0 flex-col rounded-(--radius-card) border border-border/40 bg-card text-card-foreground shadow-sm",
+  "flex w-full min-w-0 flex-col rounded-(--radius-card) border border-border/60 bg-card text-card-foreground",
   {
     variants: {
       padding: {
@@ -14,7 +14,7 @@ const dashCardVariants = cva(
       },
       span: {
         default: "",
-        wide: "sm:col-span-2",
+        wide: "lg:col-span-2",
         full: "col-span-full",
       },
     },

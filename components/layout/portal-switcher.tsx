@@ -32,7 +32,7 @@ function PortalSwitcher() {
             : "text-muted-foreground hover:text-foreground"
         )}
       >
-        Advisor
+        Wealth manager
       </Link>
     </div>
   );

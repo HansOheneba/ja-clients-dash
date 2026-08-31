@@ -11,3 +11,5 @@ export * from "@/lib/data/concierge";
 export * from "@/lib/data/sessions";
 export * from "@/lib/data/advisor-insights";
 export * from "@/lib/data/celerey";
+export * from "@/lib/api/domain/wealth-portfolio";
+export * from "@/lib/api/domain/reports";

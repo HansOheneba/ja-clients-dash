@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Settings } from "lucide-react";
-
 import { DashboardTopBar } from "@/components/layout/dashboard-top-bar";
 import { NavIcon } from "@/components/layout/nav-icon";
 import { mainNavItems, type NavItem } from "@/lib/navigation";
@@ -20,6 +19,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarRail,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
@@ -45,24 +45,34 @@ function DashboardShell({
   profileHref,
 }: DashboardShellProps) {
   const pathname = usePathname();
+  const settingsHref = `${basePath}/settings`;
+  const settingsActive = pathname.startsWith(settingsHref);
 
   return (
     <SidebarProvider
-      defaultOpen={false}
+      defaultOpen
       style={{ "--sidebar-width-icon": "4.5rem" } as React.CSSProperties}
     >
       <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-        <SidebarHeader className="gap-3 px-3 pb-4 pt-5 flex">
+        <SidebarHeader className="flex gap-3 px-3 pb-4 pt-5">
           <Link
             href={basePath}
-            className="flex mx-auto size-10 shrink-0 items-center justify-center rounded-lg transition-opacity hover:opacity-80"
+            className="mb-1 flex h-10 w-full shrink-0 items-center rounded-lg px-2 transition-opacity hover:opacity-80 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:mb-0 group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
           >
             <Image
+              src="/logos/JA_Wealth_wht.png"
+              alt="JA Wealth"
+              width={148}
+              height={26}
+              className="h-6 w-auto object-contain group-data-[collapsible=icon]:hidden"
+              priority
+            />
+            <Image
               src="/logos/ja-symbol-white.png"
-              alt="JA Group"
+              alt="JA Wealth"
               width={32}
               height={32}
-              className="size-8 object-contain"
+              className="hidden size-8 object-contain group-data-[collapsible=icon]:block"
               priority
             />
           </Link>
@@ -107,13 +117,15 @@ function DashboardShell({
 
         <SidebarContent className="flex-1" />
 
-        <SidebarFooter className="items-center px-3 pb-5 pt-2">
+        <SidebarFooter className="px-3 pb-5 pt-2 group-data-[collapsible=icon]:items-center">
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
+                isActive={settingsActive}
                 tooltip="Settings"
                 size="lg"
                 className="group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:[&>span]:hidden"
+                render={<Link href={settingsHref} />}
               >
                 <Settings className="size-5" />
                 <span>Settings</span>
@@ -121,6 +133,7 @@ function DashboardShell({
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>
+        <SidebarRail />
       </Sidebar>
 
       <SidebarInset className="bg-dashboard-gradient">

@@ -24,7 +24,7 @@ export default function OnboardingPage() {
           <div className="flex size-16 items-center justify-center rounded-2xl bg-primary shadow-lg">
             <Image
               src="/logos/ja-symbol-white.png"
-              alt="JA Group"
+              alt="JA Wealth"
               width={36}
               height={36}
               className="size-9 object-contain"
@@ -32,7 +32,7 @@ export default function OnboardingPage() {
             />
           </div>
           <div className="flex flex-col gap-2">
-            <H1>Welcome to JA Group</H1>
+            <H1>Welcome to JA Wealth</H1>
             <Lead>
               Before we take you to your dashboard, let&apos;s get a few things
               set up so your experience is personalised from day one.

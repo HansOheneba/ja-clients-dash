@@ -1,12 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Pencil } from "lucide-react";
 
+import {
+  GoalFormFields,
+  goalFormFromClientGoal,
+  type GoalFormState,
+} from "@/components/advisors/goal-form-fields";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Sheet,
   SheetClose,
@@ -17,16 +19,44 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import type { Goal } from "@/lib/data/goals";
+import type { ClientGoal } from "@/lib/wealth/types";
 
 type EditGoalSheetProps = {
-  goal: Goal;
+  goal: ClientGoal;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   hideTrigger?: boolean;
+  onSave: (input: GoalFormState) => Promise<void>;
 };
 
-function EditGoalSheet({ goal, open, onOpenChange, hideTrigger }: EditGoalSheetProps) {
+function EditGoalSheet({
+  goal,
+  open,
+  onOpenChange,
+  hideTrigger,
+  onSave,
+}: EditGoalSheetProps) {
+  const [values, setValues] = useState<GoalFormState>(() => goalFormFromClientGoal(goal));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setValues(goalFormFromClientGoal(goal));
+    setError(null);
+  }, [goal]);
+
+  async function submit() {
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(values);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save goal");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {!hideTrigger && (
@@ -45,68 +75,15 @@ function EditGoalSheet({ goal, open, onOpenChange, hideTrigger }: EditGoalSheetP
           <SheetDescription>Update the details for &ldquo;{goal.name}&rdquo;.</SheetDescription>
         </SheetHeader>
 
-        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 py-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="eg-category">Category</Label>
-            <Select id="eg-category" defaultValue={goal.category}>
-              <option>Retirement Planning</option>
-              <option>Property Purchase</option>
-              <option>Children&apos;s Education</option>
-              <option>Wealth Preservation</option>
-              <option>Family Protection</option>
-              <option>Business Expansion</option>
-              <option>Second Citizenship</option>
-              <option>Philanthropic Giving</option>
-              <option>Other</option>
-            </Select>
-          </div>
+        <GoalFormFields idPrefix="eg" values={values} onChange={setValues} />
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="eg-name">Goal name</Label>
-            <Input id="eg-name" defaultValue={goal.name} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="eg-target">Target amount (USD)</Label>
-              <Input id="eg-target" type="number" defaultValue={goal.targetUSD} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="eg-current">Current amount (USD)</Label>
-              <Input id="eg-current" type="number" defaultValue={goal.currentUSD} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="eg-date">Target date</Label>
-              <Input id="eg-date" defaultValue={goal.targetDate} />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="eg-probability">Success probability (%)</Label>
-              <Input id="eg-probability" type="number" min="0" max="100" defaultValue={goal.probabilityPct} />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="eg-status">Status</Label>
-            <Select id="eg-status" defaultValue={goal.status}>
-              <option value="on-track">On track</option>
-              <option value="ahead">Ahead</option>
-              <option value="at-risk">At risk</option>
-              <option value="in-progress">In progress</option>
-            </Select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="eg-note">Advisor note (visible to client)</Label>
-            <Textarea id="eg-note" rows={4} defaultValue={goal.advisorNote} />
-          </div>
-        </div>
+        {error ? <p className="px-4 text-sm text-destructive">{error}</p> : null}
 
         <SheetFooter className="flex gap-2">
           <SheetClose render={<Button variant="outline" className="flex-1">Cancel</Button>} />
-          <Button className="flex-1">Save changes</Button>
+          <Button type="button" className="flex-1" onClick={submit} disabled={saving}>
+            {saving ? "Saving..." : "Save changes"}
+          </Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>

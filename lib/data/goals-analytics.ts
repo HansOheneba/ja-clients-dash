@@ -40,7 +40,7 @@ function computeGoalsAnalytics(goals: Goal[]): GoalsAnalytics {
       id: g.id,
       name: g.name,
       category: g.category,
-      pct: Math.min(100, Math.round((g.currentUSD / g.targetUSD) * 100)),
+      pct: g.targetUSD > 0 ? Math.min(100, Math.round((g.currentUSD / g.targetUSD) * 100)) : 0,
       gapUSD: Math.max(0, g.targetUSD - g.currentUSD),
       status: g.status,
       probabilityPct: g.probabilityPct,

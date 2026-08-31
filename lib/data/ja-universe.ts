@@ -1,4 +1,4 @@
-// JA Group Universe data: replace with API calls
+// JA Wealth Universe data: replace with API calls
 
 export interface JaHolding {
   name: string;

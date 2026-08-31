@@ -1,18 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  ArrowRight,
-  CalendarDays,
-  CheckSquare,
-  Download,
-  ExternalLink,
-  TrendingUp,
-} from "lucide-react";
+import { ArrowRight, Download } from "lucide-react";
 
 import { DashboardGrid, PageShell } from "@/components/layout/page-shell";
 import { AllocationPieChart } from "@/components/charts/asset-charts";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ClientDate } from "@/components/ui/client-date";
 import {
@@ -25,17 +18,33 @@ import {
 import { KpiItem, KpiStrip } from "@/components/ui/kpi-strip";
 import { Muted, TextSmall, H1 } from "@/components/ui/typography";
 import { useCurrency } from "@/lib/currency-context";
-import { clientOverview } from "@/lib/data/overview";
+import { useJaPortfolio } from "@/lib/hooks/use-ja-portfolio";
 import { cn } from "@/lib/utils";
 
-const { clientFirstName, portfolioValueUSD, aumWithJaUSD, cashPositionUSD, ytdPct, benchmarkYtdPct, inceptionPct, inceptionCostBasisUSD, allocationSlices, upcomingSession, openActionItems, latestAdvisorNote, recentDocument, marketPulse } = clientOverview;
+type PortalUpdate = { id: string; title: string; body: string; created_at: string };
+type ReportDoc = { id: string; name: string; date: string; downloadUrl: string };
 
 export default function ClientDashboardPage() {
   const { format } = useCurrency();
+  const { data: live, allocationSlices, loading, error } = useJaPortfolio();
+  const [updates, setUpdates] = useState<PortalUpdate[]>([]);
+  const [latestReport, setLatestReport] = useState<ReportDoc | null>(null);
+
+  useEffect(() => {
+    fetch("/api/updates")
+      .then((r) => r.json())
+      .then((d) => setUpdates(d.updates ?? []))
+      .catch(() => setUpdates([]));
+    fetch("/api/reports")
+      .then((r) => r.json())
+      .then((d) => setLatestReport(d.reports?.[0] ?? null))
+      .catch(() => setLatestReport(null));
+  }, []);
+
+  const clientFirstName = live?.clientName?.split(" ")[0] ?? "there";
 
   return (
     <PageShell className="flex flex-col gap-(--spacing-section)">
-      {/* Welcome banner */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-1">
           <p className="text-body-sm font-medium text-brand-accent">Prosper with Purpose</p>
@@ -43,165 +52,187 @@ export default function ClientDashboardPage() {
           <ClientDate />
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/clients/dashboard/sessions" className={buttonVariants({ variant: "outline", size: "sm" })}>
-            <CalendarDays className="size-4" />
-            Schedule session
+          <Link
+            href="/clients/dashboard/portfolio"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            View portfolio
           </Link>
-          <Link href="/clients/dashboard/advisor-insights" className={buttonVariants({ size: "sm" })}>
-            View insights
+          <Link href="/clients/dashboard/reports" className={buttonVariants({ size: "sm" })}>
+            Reports
           </Link>
         </div>
       </header>
 
-      {/* KPI strip */}
+      {error ? (
+        <p className="text-sm text-destructive">
+          Could not load portfolio data. Try again shortly or contact your wealth manager.
+        </p>
+      ) : null}
+
       <KpiStrip>
-        <KpiItem label="Total Net Worth"         value={format(portfolioValueUSD)} change={`+${inceptionPct}% since inception`} trend="up" emphasis="primary" />
-        <KpiItem label="Total AUM with JA Wealth" value={format(aumWithJaUSD)}     change="Fully managed" trend="neutral" />
-        <KpiItem label="Cash Position"            value={format(cashPositionUSD)}  change="15% of portfolio" trend="neutral" />
-        <KpiItem label="YTD Performance"          value={`+${ytdPct}%`}            change={`vs +${benchmarkYtdPct}% benchmark`} trend="up" />
+        <KpiItem
+          label="Total portfolio value"
+          value={live ? format(live.totalUSD) : ""}
+          change={
+            live
+              ? `${live.periodReturnPct >= 0 ? "+" : ""}${live.periodReturnPct.toFixed(1)}% this period`
+              : "Loading..."
+          }
+          trend={live && live.periodReturnPct >= 0 ? "up" : "down"}
+          emphasis="primary"
+          loading={loading}
+        />
+        <KpiItem
+          label="Period gain"
+          value={live ? format(live.periodGainUsd) : ""}
+          change={live ? "Current statement period" : ""}
+          trend={live && live.periodGainUsd >= 0 ? "up" : "down"}
+          loading={loading}
+        />
+        <KpiItem
+          label="Cash on account"
+          value={live?.cashUSD != null ? format(live.cashUSD) : ""}
+          change="Uninvested balance"
+          trend="neutral"
+          loading={loading}
+        />
+        <KpiItem
+          label="YTD performance"
+          value={live ? `${live.ytdPct >= 0 ? "+" : ""}${live.ytdPct.toFixed(1)}%` : ""}
+          change="JA managed portfolios"
+          trend="up"
+          loading={loading}
+        />
       </KpiStrip>
 
-      {/* Middle row */}
       <div className="grid grid-cols-1 gap-(--spacing-grid) lg:grid-cols-3">
-        {/* Allocation donut */}
         <DashCard>
           <DashCardHeader>
             <div>
-              <DashCardTitle>Portfolio Allocation</DashCardTitle>
-              <DashCardDescription>Current vs target strategy</DashCardDescription>
+              <DashCardTitle>Portfolio allocation</DashCardTitle>
+              <DashCardDescription>Current statement breakdown</DashCardDescription>
             </div>
           </DashCardHeader>
           <DashCardContent>
-            <AllocationPieChart data={allocationSlices} />
-            <div className="mt-3 flex flex-col gap-2">
-              {allocationSlices.map((a) => (
-                <div key={a.name} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: a.color }} />
-                    <TextSmall>{a.name}</TextSmall>
-                  </div>
-                  <TextSmall className="font-medium">{a.value}%</TextSmall>
+            {loading ? (
+              <Muted>Loading allocation...</Muted>
+            ) : allocationSlices.length > 0 ? (
+              <>
+                <AllocationPieChart data={allocationSlices} />
+                <div className="mt-3 flex flex-col gap-2">
+                  {allocationSlices.map((a) => (
+                    <div key={a.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="size-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: a.color }}
+                        />
+                        <TextSmall>{a.name}</TextSmall>
+                      </div>
+                      <TextSmall className="font-medium">{a.value}%</TextSmall>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <Link href="/clients/dashboard/portfolio" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-4 w-full")}>
+              </>
+            ) : (
+              <Muted>No allocation data for this period yet.</Muted>
+            )}
+            <Link
+              href="/clients/dashboard/portfolio"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-4 w-full")}
+            >
               View full portfolio
               <ArrowRight className="size-3.5" />
             </Link>
           </DashCardContent>
         </DashCard>
 
-        {/* Right column */}
         <div className="flex flex-col gap-(--spacing-grid) lg:col-span-2">
           <DashCard>
             <DashCardHeader>
               <div>
-                <DashCardTitle>Upcoming Session</DashCardTitle>
-                <DashCardDescription>Your next advisor meeting</DashCardDescription>
+                <DashCardTitle>Latest update</DashCardTitle>
+                <DashCardDescription>From your wealth manager</DashCardDescription>
               </div>
-              <Badge variant="secondary">{upcomingSession.status}</Badge>
             </DashCardHeader>
             <DashCardContent>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-col gap-1">
-                  <TextSmall className="font-medium">{upcomingSession.type}</TextSmall>
-                  <Muted>{upcomingSession.advisor} · {upcomingSession.date}, {upcomingSession.time} · {upcomingSession.format}</Muted>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <Button variant="outline" size="sm">Add to calendar</Button>
-                  {upcomingSession.joinUrl && (
-                    <Button size="sm">
-                      <ExternalLink className="size-3.5" />
-                      Join
-                    </Button>
-                  )}
-                </div>
-              </div>
+              {updates[0] ? (
+                <>
+                  <TextSmall className="font-medium">{updates[0].title}</TextSmall>
+                  <TextSmall className="mt-2 leading-relaxed text-muted-foreground">
+                    {updates[0].body}
+                  </TextSmall>
+                  <Muted className="mt-2">
+                    {new Date(updates[0].created_at).toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </Muted>
+                </>
+              ) : (
+                <TextSmall className="leading-relaxed text-muted-foreground">
+                  When your wealth manager publishes a report or updates your portfolio, it
+                  will appear here.
+                </TextSmall>
+              )}
             </DashCardContent>
           </DashCard>
 
-          <div className="grid grid-cols-1 gap-(--spacing-grid) sm:grid-cols-2">
-            <DashCard>
-              <DashCardHeader>
-                <DashCardTitle>Since Inception</DashCardTitle>
-                <TrendingUp className="size-4 text-brand-accent" />
-              </DashCardHeader>
-              <DashCardContent>
-                <p className="font-numeric text-[2.25rem] font-bold tracking-tight">+{inceptionPct}%</p>
-                <TextSmall className="mt-1 text-muted-foreground">{format(portfolioValueUSD - inceptionCostBasisUSD)} total gain</TextSmall>
-              </DashCardContent>
-            </DashCard>
-
-            <DashCard>
-              <DashCardHeader>
-                <DashCardTitle>Action Items</DashCardTitle>
-                <CheckSquare className="size-4 text-muted-foreground" />
-              </DashCardHeader>
-              <DashCardContent>
-                <p className="font-numeric text-[2.25rem] font-bold tracking-tight">{openActionItems}</p>
-                <TextSmall className="mt-1 text-muted-foreground">Pending your review</TextSmall>
-                <Link href="/clients/dashboard/tasks" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-3 w-full")}>
-                  View tasks
+          <DashCard>
+            <DashCardHeader>
+              <div>
+                <DashCardTitle>Recent report</DashCardTitle>
+                <DashCardDescription>Latest statement in your vault</DashCardDescription>
+              </div>
+            </DashCardHeader>
+            <DashCardContent>
+              <TextSmall className="font-medium">
+                {latestReport?.name ?? "No report yet"}
+              </TextSmall>
+              <Muted className="mt-1">
+                {latestReport
+                  ? `Added ${latestReport.date}`
+                  : "Your wealth manager will publish statements here"}
+              </Muted>
+              <div className="mt-4 flex gap-2">
+                {latestReport ? (
+                  <a href={latestReport.downloadUrl}>
+                    <Button variant="outline" size="sm">
+                      <Download className="size-3.5" />
+                      Download
+                    </Button>
+                  </a>
+                ) : null}
+                <Link
+                  href="/clients/dashboard/reports"
+                  className={buttonVariants({ variant: "ghost", size: "sm" })}
+                >
+                  All reports
                 </Link>
-              </DashCardContent>
-            </DashCard>
-          </div>
+              </div>
+            </DashCardContent>
+          </DashCard>
         </div>
       </div>
 
-      {/* Bottom row */}
       <DashboardGrid>
         <DashCard>
           <DashCardHeader>
-            <div>
-              <DashCardTitle>Latest Advisor Note</DashCardTitle>
-              <DashCardDescription>{latestAdvisorNote.advisor} · {latestAdvisorNote.date}</DashCardDescription>
-            </div>
+            <DashCardTitle>Demo gallery</DashCardTitle>
+            <DashCardDescription>Preview upcoming product screens</DashCardDescription>
           </DashCardHeader>
           <DashCardContent>
-            <TextSmall className="leading-relaxed text-muted-foreground">{latestAdvisorNote.preview}</TextSmall>
-            <Link href="/clients/dashboard/advisor-insights" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-4")}>
-              Read full note
-              <ArrowRight className="size-3.5" />
-            </Link>
-          </DashCardContent>
-        </DashCard>
-
-        <DashCard>
-          <DashCardHeader>
-            <div>
-              <DashCardTitle>Recent Document</DashCardTitle>
-              <DashCardDescription>Latest report added to your vault</DashCardDescription>
-            </div>
-          </DashCardHeader>
-          <DashCardContent>
-            <div className="flex flex-col gap-1">
-              <TextSmall className="font-medium">{recentDocument.name}</TextSmall>
-              <Muted>Added {recentDocument.addedDate} · {recentDocument.format} · {recentDocument.sizeKb} KB</Muted>
-            </div>
-            <div className="mt-4 flex gap-2">
-              <Button variant="outline" size="sm">
-                <Download className="size-3.5" />
-                Download
-              </Button>
-              <Link href="/clients/dashboard/documents" className={buttonVariants({ variant: "ghost", size: "sm" })}>
-                All documents
-              </Link>
-            </div>
-          </DashCardContent>
-        </DashCard>
-
-        <DashCard>
-          <DashCardHeader>
-            <div>
-              <DashCardTitle>JA Group Market Pulse</DashCardTitle>
-              <DashCardDescription>House view · {marketPulse.date}</DashCardDescription>
-            </div>
-          </DashCardHeader>
-          <DashCardContent>
-            <TextSmall className="leading-relaxed text-muted-foreground">{marketPulse.headline}</TextSmall>
-            <Link href="/clients/dashboard/market-insights" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-4")}>
-              Read full commentary
+            <TextSmall className="text-muted-foreground">
+              Sessions, concierge, and other modules are available as design demos with
+              sample data.
+            </TextSmall>
+            <Link
+              href="/clients/dashboard/demo"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-4")}
+            >
+              Open demo gallery
               <ArrowRight className="size-3.5" />
             </Link>
           </DashCardContent>

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 
+import { dashboardHomeForRole } from "@/lib/auth/dashboard-routes";
+
 export default function WelcomePage() {
   const router = useRouter();
   const [visible, setVisible] = useState(false);
@@ -12,12 +14,21 @@ export default function WelcomePage() {
   useEffect(() => {
     const t1 = setTimeout(() => setVisible(true), 60);
     const t2 = setTimeout(() => setExiting(true), 1900);
-    const t3 = setTimeout(() => router.push("/clients/dashboard"), 2450);
+
+    fetch("/api/me")
+      .then((r) => r.json())
+      .then((data) => {
+        const home = dashboardHomeForRole(data.role ?? "client");
+        const t3 = setTimeout(() => router.push(home), 2450);
+        return () => clearTimeout(t3);
+      })
+      .catch(() => {
+        setTimeout(() => router.push("/clients/dashboard"), 2450);
+      });
 
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
-      clearTimeout(t3);
     };
   }, [router]);
 
@@ -39,7 +50,7 @@ export default function WelcomePage() {
       >
         <Image
           src="/logos/ja-symbol-white.png"
-          alt="JA Group"
+          alt="JA Wealth"
           width={52}
           height={52}
           className="size-[52px] object-contain"

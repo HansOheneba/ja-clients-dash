@@ -137,7 +137,7 @@ function KpiItem({
         dashboardTheme.kpiTile,
         "flex flex-col gap-1 px-4 py-3.5",
         emphasis === "primary" && "border-brand-primary/30 bg-brand-primary/5",
-        onClick && !loading && "cursor-pointer transition-shadow hover:shadow-md",
+        onClick && !loading && "cursor-pointer transition-colors hover:border-border",
         className,
       )}
       {...props}

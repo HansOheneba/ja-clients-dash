@@ -26,9 +26,9 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "JA Group | Client Dashboard",
+  title: "JA Wealth | Client Portal",
   description:
-    "Client and advisor dashboard for JA Group wealth management services.",
+    "Client and advisor portal for JA Wealth management services.",
   icons: {
     icon: [
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },

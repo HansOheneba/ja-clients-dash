@@ -41,8 +41,7 @@ function DashboardGrid({
   return (
     <div
       className={cn(
-        "grid w-full auto-rows-fr grid-cols-1 gap-(--spacing-grid)",
-        "sm:grid-cols-[repeat(auto-fit,minmax(min(100%,var(--card-min-width)),1fr))]",
+        "grid w-full grid-cols-1 gap-(--spacing-grid) auto-rows-auto lg:grid-cols-3",
         className
       )}
       {...props}
