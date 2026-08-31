@@ -1,7 +1,14 @@
+import { redirect } from "next/navigation";
 import { dashboardHomeForRole, isAdvisorRole } from "@/lib/auth/dashboard-routes";
 import { createClient } from "@/lib/supabase/server";
 import { getProfileByUserId } from "@/lib/wealth/queries";
 import type { SessionProfile } from "@/lib/wealth/types";
+
+export type AuthedSession = {
+  userId: string;
+  email: string;
+  profile: SessionProfile;
+};
 
 export async function getSessionProfile(): Promise<{
   userId: string;
@@ -22,7 +29,7 @@ export async function getSessionProfile(): Promise<{
   };
 }
 
-export async function requireUser() {
+export async function requireUser(): Promise<AuthedSession> {
   const session = await getSessionProfile();
   if (!session?.profile) redirect("/login");
   return { userId: session.userId, email: session.email, profile: session.profile };
