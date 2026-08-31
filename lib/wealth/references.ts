@@ -6,8 +6,9 @@ export function clientNumberFromId(id: string): string {
   let value = BigInt(`0x${hex}`);
   let token = "";
   for (let i = 0; i < 8; i += 1) {
-    token = CLIENT_NUMBER_ALPHABET[Number(value % 32n)] + token;
-    value /= 32n;
+    const radix = BigInt(32);
+    token = CLIENT_NUMBER_ALPHABET[Number(value % radix)] + token;
+    value /= radix;
   }
   return `JA-${token}`;
 }
