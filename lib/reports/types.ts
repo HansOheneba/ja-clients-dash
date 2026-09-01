@@ -1,4 +1,5 @@
 import type { PortfolioBucket, TransactionType } from "@/lib/wealth/types";
+import type { ReportSectionKey } from "@/lib/wealth/wm-types";
 
 export interface ReportAddress {
   line1: string;
@@ -86,4 +87,6 @@ export interface InvestmentReportData {
   advisor: ReportAdvisor | null;
   disclaimerTitle: string;
   disclaimerBody: string;
+  includedSections: ReportSectionKey[];
+  totalPages: number;
 }

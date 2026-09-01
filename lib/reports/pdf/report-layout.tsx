@@ -3,7 +3,7 @@ import { Image, Page, Text, View } from "@react-pdf/renderer";
 
 import type { InvestmentReportData } from "@/lib/reports/types";
 import { JA_REPORT_LOGO } from "@/lib/reports/pdf/report-assets";
-import { colors, fonts, REPORT_PAGES, reportStyles } from "@/lib/reports/pdf/report-theme";
+import { colors, fonts, reportStyles } from "@/lib/reports/pdf/report-theme";
 
 export function RunningHeader({ clientName }: { clientName: string }) {
   return (
@@ -18,9 +18,11 @@ export function RunningHeader({ clientName }: { clientName: string }) {
 export function RunningFooter({
   clientNumber,
   pageNumber,
+  totalPages,
 }: {
   clientNumber: string;
   pageNumber: number;
+  totalPages: number;
 }) {
   return (
     <View style={reportStyles.runningFooter} fixed>
@@ -30,7 +32,7 @@ export function RunningFooter({
       </Text>
       <Text style={reportStyles.footerCenter}>Confidential</Text>
       <Text style={reportStyles.footerText}>
-        {clientNumber} · Page {pageNumber} of {REPORT_PAGES}
+        {clientNumber} · Page {pageNumber} of {totalPages}
       </Text>
     </View>
   );
@@ -40,18 +42,24 @@ export function ReportPageShell({
   clientName,
   clientNumber,
   pageNumber,
+  totalPages,
   children,
 }: {
   clientName: string;
   clientNumber: string;
   pageNumber: number;
+  totalPages: number;
   children: React.ReactNode;
 }) {
   return (
     <Page size="A4" style={reportStyles.page}>
       <RunningHeader clientName={clientName} />
       <View>{children}</View>
-      <RunningFooter clientNumber={clientNumber} pageNumber={pageNumber} />
+      <RunningFooter
+        clientNumber={clientNumber}
+        pageNumber={pageNumber}
+        totalPages={totalPages}
+      />
     </Page>
   );
 }
@@ -106,7 +114,7 @@ export function CoverPage({
           Confidential
         </Text>
         <Text style={{ fontSize: 6.5, color: "rgba(255,255,255,0.5)", fontFamily: fonts.body }}>
-          {data.clientNumber} · Page 1 of {REPORT_PAGES}
+          {data.clientNumber} · Page 1 of {data.totalPages}
         </Text>
       </View>
     </Page>

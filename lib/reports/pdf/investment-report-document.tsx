@@ -310,7 +310,7 @@ export function InvestmentReportDocument({
     <Document>
       <CoverPage data={data} logoSrc={logoSrc} />
 
-      <ReportPageShell clientName={data.clientName} clientNumber={data.clientNumber} pageNumber={2}>
+      <ReportPageShell clientName={data.clientName} clientNumber={data.clientNumber} pageNumber={2} totalPages={data.totalPages}>
         <Text style={reportStyles.level1}>Executive Summary</Text>
         <ClientDetailsGrid data={data} />
         <KpiBand
@@ -329,7 +329,7 @@ export function InvestmentReportDocument({
         </Text>
       </ReportPageShell>
 
-      <ReportPageShell clientName={data.clientName} clientNumber={data.clientNumber} pageNumber={3}>
+      <ReportPageShell clientName={data.clientName} clientNumber={data.clientNumber} pageNumber={3} totalPages={data.totalPages}>
         <Text style={reportStyles.level1}>Portfolio Overview</Text>
         <SubsectionTitle>Portfolio summary</SubsectionTitle>
         <OverviewTable data={data} />
@@ -341,7 +341,7 @@ export function InvestmentReportDocument({
         <AllocationBreakdownTable data={data} />
       </ReportPageShell>
 
-      <ReportPageShell clientName={data.clientName} clientNumber={data.clientNumber} pageNumber={4}>
+      <ReportPageShell clientName={data.clientName} clientNumber={data.clientNumber} pageNumber={4} totalPages={data.totalPages}>
         <Text style={reportStyles.level1}>Performance</Text>
         <SubsectionTitle>Portfolio value over time</SubsectionTitle>
         <View style={reportStyles.chartBox}>
@@ -353,7 +353,7 @@ export function InvestmentReportDocument({
         <InceptionPerformanceTable data={data} />
       </ReportPageShell>
 
-      <ReportPageShell clientName={data.clientName} clientNumber={data.clientNumber} pageNumber={5}>
+      <ReportPageShell clientName={data.clientName} clientNumber={data.clientNumber} pageNumber={5} totalPages={data.totalPages}>
         <Text style={reportStyles.level1}>Transactions & Activity</Text>
         <SubsectionTitle>Recent transactions</SubsectionTitle>
         <TransactionsTable
@@ -380,7 +380,7 @@ export function InvestmentReportDocument({
         />
       </ReportPageShell>
 
-      <ReportPageShell clientName={data.clientName} clientNumber={data.clientNumber} pageNumber={6}>
+      <ReportPageShell clientName={data.clientName} clientNumber={data.clientNumber} pageNumber={6} totalPages={data.totalPages}>
         <Text style={reportStyles.level1}>Important Information</Text>
         {data.advisor ? (
           <>

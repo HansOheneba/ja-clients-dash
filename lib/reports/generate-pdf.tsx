@@ -5,6 +5,7 @@ import { registerReportFonts } from "@/lib/reports/pdf/report-fonts";
 import { InvestmentReportDocument } from "@/lib/reports/pdf/investment-report-document";
 import type { InvestmentReportData } from "@/lib/reports/types";
 import type { ReportKind } from "@/lib/wealth/period-calendar";
+import type { ReportSectionKey } from "@/lib/wealth/wm-types";
 
 export async function renderInvestmentReportPdf(
   data: InvestmentReportData,
@@ -18,8 +19,15 @@ export async function generateInvestmentReportPdf(
   clientId: string,
   periodId: string,
   kind: ReportKind = "monthly",
+  sections?: ReportSectionKey[] | null,
 ): Promise<{ buffer: Buffer; data: InvestmentReportData }> {
-  const data = await assembleInvestmentReportData(clientId, periodId, new Date(), kind);
+  const data = await assembleInvestmentReportData(
+    clientId,
+    periodId,
+    new Date(),
+    kind,
+    sections,
+  );
   const buffer = await renderInvestmentReportPdf(data);
   return { buffer, data };
 }

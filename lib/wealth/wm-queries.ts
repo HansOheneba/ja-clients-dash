@@ -1,11 +1,15 @@
 import { queryDb } from "@/lib/supabase/db";
+import { isReportKind, statementKindTitle } from "@/lib/wealth/period-calendar";
 import type { PortfolioBucket } from "@/lib/wealth/types";
 import type {
   AttentionItem,
   AuditLogEntry,
+  ClientAdvisorNote,
+  ClientInternalDocument,
   ClientListExtended,
   DocumentRequest,
   MessageThread,
+  OutstandingReport,
   ReviewCadence,
   SessionRequest,
   SessionRequestStatus,
@@ -128,6 +132,138 @@ export async function listClientsExtended(
     period_return_pct: r.period_return_pct != null ? Number(r.period_return_pct) : null,
     review_cadence: r.review_cadence as ReviewCadence | null,
   }));
+}
+
+export async function listOutstandingReports(
+  advisorId?: string | null,
+  clientId?: string | null,
+): Promise<OutstandingReport[]> {
+  const rows = await queryDb<{
+    client_id: string;
+    client_name: string;
+    period_id: string;
+    period_end: string;
+    kind: string;
+    window_label: string;
+  }>(
+    `WITH scoped AS (
+       SELECT c.id, c.full_name
+       FROM wealth.clients c
+       WHERE c.status IS DISTINCT FROM 'inactive'
+         AND ($1::uuid IS NULL OR c.advisor_id = $1)
+         AND ($2::uuid IS NULL OR c.id = $2)
+     ),
+     latest_month AS (
+       SELECT DISTINCT ON (p.client_id)
+         p.client_id,
+         s.full_name AS client_name,
+         p.id AS period_id,
+         p.period_end,
+         p.label
+       FROM wealth.statement_periods p
+       INNER JOIN scoped s ON s.id = p.client_id
+       ORDER BY p.client_id, p.period_end DESC
+     ),
+     latest_quarter AS (
+       SELECT DISTINCT ON (p.client_id)
+         p.client_id,
+         s.full_name AS client_name,
+         p.id AS period_id,
+         p.period_end
+       FROM wealth.statement_periods p
+       INNER JOIN scoped s ON s.id = p.client_id
+       WHERE EXTRACT(MONTH FROM p.period_end) IN (3, 6, 9, 12)
+       ORDER BY p.client_id, p.period_end DESC
+     ),
+     latest_year AS (
+       SELECT DISTINCT ON (p.client_id)
+         p.client_id,
+         s.full_name AS client_name,
+         p.id AS period_id,
+         p.period_end
+       FROM wealth.statement_periods p
+       INNER JOIN scoped s ON s.id = p.client_id
+       WHERE EXTRACT(MONTH FROM p.period_end) = 12
+       ORDER BY p.client_id, p.period_end DESC
+     ),
+     needed AS (
+       SELECT
+         m.client_id,
+         m.client_name,
+         m.period_id,
+         m.period_end,
+         'monthly'::text AS kind,
+         m.label AS window_label,
+         'M'::text AS token,
+         to_char(m.period_end, 'YYYYMMDD') AS window_stamp,
+         true AS match_period
+       FROM latest_month m
+       UNION ALL
+       SELECT
+         q.client_id,
+         q.client_name,
+         q.period_id,
+         q.period_end,
+         'quarterly',
+         'Q' || EXTRACT(QUARTER FROM q.period_end)::int || ' ' || EXTRACT(YEAR FROM q.period_end)::int,
+         'Q',
+         to_char(
+           (date_trunc('quarter', q.period_end::timestamp)
+             + interval '3 months'
+             - interval '1 day')::date,
+           'YYYYMMDD'
+         ),
+         false
+       FROM latest_quarter q
+       UNION ALL
+       SELECT
+         y.client_id,
+         y.client_name,
+         y.period_id,
+         y.period_end,
+         'annual',
+         EXTRACT(YEAR FROM y.period_end)::int::text,
+         'A',
+         to_char(make_date(EXTRACT(YEAR FROM y.period_end)::int, 12, 31), 'YYYYMMDD'),
+         false
+       FROM latest_year y
+     )
+     SELECT
+       n.client_id,
+       n.client_name,
+       n.period_id,
+       n.period_end::text,
+       n.kind,
+       n.window_label
+     FROM needed n
+     WHERE NOT EXISTS (
+       SELECT 1
+       FROM wealth.reports r
+       WHERE r.client_id = n.client_id
+         AND split_part(r.reference, '/', 2) = n.token
+         AND (
+           (n.match_period AND r.period_id = n.period_id)
+           OR (NOT n.match_period AND split_part(r.reference, '/', 3) = n.window_stamp)
+         )
+     )
+     ORDER BY n.client_name ASC,
+       CASE n.kind WHEN 'monthly' THEN 1 WHEN 'quarterly' THEN 2 ELSE 3 END`,
+    [advisorId ?? null, clientId ?? null],
+  );
+
+  return rows.flatMap((r) => {
+    if (!isReportKind(r.kind)) return [];
+    return [
+      {
+        clientId: r.client_id,
+        clientName: r.client_name,
+        periodId: r.period_id,
+        periodEnd: r.period_end,
+        kind: r.kind,
+        windowLabel: r.window_label,
+      },
+    ];
+  });
 }
 
 export async function getAttentionFeed(advisorId?: string | null): Promise<AttentionItem[]> {
@@ -265,9 +401,25 @@ export async function getAttentionFeed(advisorId?: string | null): Promise<Atten
     });
   }
 
-  return items.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
+  const outstanding = await listOutstandingReports(advisorId);
+  for (const row of outstanding.slice(0, 12)) {
+    items.push({
+      id: `rp-${row.clientId}-${row.kind}-${row.periodId}`,
+      type: "report_due",
+      title: `${statementKindTitle(row.kind)} not generated for ${row.clientName} (${row.windowLabel})`,
+      clientId: row.clientId,
+      clientName: row.clientName,
+      href: `/advisors/dashboard/clients/${row.clientId}?tab=Reports`,
+      createdAt: `${row.periodEnd}T12:00:00`,
+    });
+  }
+
+  return items.sort((a, b) => {
+    const dueRank = (type: AttentionItem["type"]) => (type === "report_due" ? 1 : 0);
+    const byDue = dueRank(b.type) - dueRank(a.type);
+    if (byDue !== 0) return byDue;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
 }
 
 export async function bulkTagReviewDue(clientIds: string[]): Promise<number> {
@@ -534,12 +686,15 @@ export async function listMessageThreads(
 }
 
 export async function listMessages(threadId: string): Promise<WmMessage[]> {
-  return queryDb<WmMessage>(
-    `SELECT id, thread_id, sender_role, sender_id, body,
-            attachment_type, attachment_id, created_at::text
-     FROM wealth.messages
-     WHERE thread_id = $1
-     ORDER BY created_at ASC`,
+  return queryDb<WmMessage & { sender_name: string | null }>(
+    `SELECT m.id, m.thread_id, m.sender_role, m.sender_id, m.body,
+            m.attachment_type, m.attachment_id, m.created_at::text,
+            COALESCE(a.full_name, p.full_name) AS sender_name
+     FROM wealth.messages m
+     LEFT JOIN wealth.profiles p ON p.id = m.sender_id
+     LEFT JOIN wealth.advisors a ON a.id = p.advisor_id
+     WHERE m.thread_id = $1
+     ORDER BY m.created_at ASC`,
     [threadId],
   );
 }
@@ -631,4 +786,146 @@ export function computeNextReviewDate(
   else if (cadence === "semi_annual") d.setMonth(d.getMonth() + 6);
   else d.setFullYear(d.getFullYear() + 1);
   return d.toISOString().slice(0, 10);
+}
+
+// Handover notes and internal documents
+export async function listClientAdvisorNotes(
+  clientId: string,
+): Promise<ClientAdvisorNote[]> {
+  const notes = await queryDb<
+    Omit<ClientAdvisorNote, "attachments"> & { author_name: string }
+  >(
+    `SELECT n.id, n.client_id, n.author_user_id, n.author_advisor_id, n.body,
+            n.created_at::text,
+            COALESCE(a.full_name, p.full_name, 'Unknown') AS author_name
+     FROM wealth.client_advisor_notes n
+     LEFT JOIN wealth.profiles p ON p.id = n.author_user_id
+     LEFT JOIN wealth.advisors a ON a.id = n.author_advisor_id
+     WHERE n.client_id = $1
+     ORDER BY n.created_at DESC`,
+    [clientId],
+  );
+
+  const noteIds = notes.map((n) => n.id);
+  if (noteIds.length === 0) return [];
+
+  const attachments = await queryDb<ClientInternalDocument & { note_id: string }>(
+    `SELECT na.note_id, d.id, d.client_id, d.title, d.description, d.storage_path,
+            d.mime_type, d.file_size_bytes, d.uploaded_by, d.uploaded_by_advisor_id,
+            d.created_at::text,
+            COALESCE(a.full_name, p.full_name, 'Unknown') AS uploader_name
+     FROM wealth.client_note_attachments na
+     JOIN wealth.client_internal_documents d ON d.id = na.document_id
+     LEFT JOIN wealth.profiles p ON p.id = d.uploaded_by
+     LEFT JOIN wealth.advisors a ON a.id = d.uploaded_by_advisor_id
+     WHERE na.note_id = ANY($1::uuid[])`,
+    [noteIds],
+  );
+
+  const byNote = new Map<string, ClientInternalDocument[]>();
+  for (const row of attachments) {
+    const { note_id, ...doc } = row;
+    const list = byNote.get(note_id) ?? [];
+    list.push(doc);
+    byNote.set(note_id, list);
+  }
+
+  return notes.map((n) => ({
+    ...n,
+    attachments: byNote.get(n.id) ?? [],
+  }));
+}
+
+export async function insertClientAdvisorNote(row: {
+  clientId: string;
+  authorUserId: string;
+  authorAdvisorId?: string | null;
+  body: string;
+  attachmentIds?: string[];
+}): Promise<ClientAdvisorNote> {
+  const rows = await queryDb<{ id: string }>(
+    `INSERT INTO wealth.client_advisor_notes (client_id, author_user_id, author_advisor_id, body)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id`,
+    [row.clientId, row.authorUserId, row.authorAdvisorId ?? null, row.body],
+  );
+  const noteId = rows[0]!.id;
+
+  for (const documentId of row.attachmentIds ?? []) {
+    await queryDb(
+      `INSERT INTO wealth.client_note_attachments (note_id, document_id) VALUES ($1, $2)`,
+      [noteId, documentId],
+    );
+  }
+
+  const list = await listClientAdvisorNotes(row.clientId);
+  return list.find((n) => n.id === noteId)!;
+}
+
+export async function listClientInternalDocuments(
+  clientId: string,
+): Promise<ClientInternalDocument[]> {
+  return queryDb<ClientInternalDocument>(
+    `SELECT d.id, d.client_id, d.title, d.description, d.storage_path,
+            d.mime_type, d.file_size_bytes, d.uploaded_by, d.uploaded_by_advisor_id,
+            d.created_at::text,
+            COALESCE(a.full_name, p.full_name, 'Unknown') AS uploader_name
+     FROM wealth.client_internal_documents d
+     LEFT JOIN wealth.profiles p ON p.id = d.uploaded_by
+     LEFT JOIN wealth.advisors a ON a.id = d.uploaded_by_advisor_id
+     WHERE d.client_id = $1
+     ORDER BY d.created_at DESC`,
+    [clientId],
+  );
+}
+
+export async function getClientInternalDocument(
+  documentId: string,
+): Promise<ClientInternalDocument | null> {
+  const rows = await queryDb<ClientInternalDocument>(
+    `SELECT d.id, d.client_id, d.title, d.description, d.storage_path,
+            d.mime_type, d.file_size_bytes, d.uploaded_by, d.uploaded_by_advisor_id,
+            d.created_at::text,
+            COALESCE(a.full_name, p.full_name, 'Unknown') AS uploader_name
+     FROM wealth.client_internal_documents d
+     LEFT JOIN wealth.profiles p ON p.id = d.uploaded_by
+     LEFT JOIN wealth.advisors a ON a.id = d.uploaded_by_advisor_id
+     WHERE d.id = $1`,
+    [documentId],
+  );
+  return rows[0] ?? null;
+}
+
+export async function insertClientInternalDocument(row: {
+  clientId: string;
+  title: string;
+  description?: string;
+  storagePath: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  uploadedBy: string;
+  uploadedByAdvisorId?: string | null;
+}): Promise<ClientInternalDocument> {
+  const rows = await queryDb<ClientInternalDocument>(
+    `INSERT INTO wealth.client_internal_documents (
+       client_id, title, description, storage_path, mime_type,
+       file_size_bytes, uploaded_by, uploaded_by_advisor_id
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING id, client_id, title, description, storage_path,
+               mime_type, file_size_bytes, uploaded_by, uploaded_by_advisor_id,
+               created_at::text`,
+    [
+      row.clientId,
+      row.title,
+      row.description ?? "",
+      row.storagePath,
+      row.mimeType,
+      row.fileSizeBytes,
+      row.uploadedBy,
+      row.uploadedByAdvisorId ?? null,
+    ],
+  );
+  const doc = rows[0]!;
+  const full = await getClientInternalDocument(doc.id);
+  return full ?? { ...doc, uploader_name: "Unknown" };
 }

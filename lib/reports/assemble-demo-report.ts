@@ -17,6 +17,7 @@ import {
   OVERVIEW_BUCKETS,
   PERFORMANCE_BUCKETS,
 } from "@/lib/wealth/constants";
+import { ALL_REPORT_SECTIONS } from "@/lib/wealth/wm-types";
 
 export type { DemoSnapshotInput } from "@/lib/reports/demo-client-data";
 
@@ -234,5 +235,7 @@ export function assembleDemoInvestmentReport(
     },
     disclaimerTitle: "Important Notice Regarding Valuations and Performance",
     disclaimerBody: DEMO_DISCLAIMER_BODY,
+    includedSections: [...ALL_REPORT_SECTIONS],
+    totalPages: 2 + ALL_REPORT_SECTIONS.length,
   };
 }

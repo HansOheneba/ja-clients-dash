@@ -44,8 +44,11 @@ export function ReportBuilder({
   async function runBatch() {
     setLoading(true);
     setResult(null);
-    const clientIds =
-      selectedClients.size > 0 ? [...selectedClients] : clientOptions.map((c) => c.id);
+    const clientIds = selectedClients.size > 0 ? [...selectedClients] : [];
+    if (clientIds.length === 0) {
+      setResult("Select at least one client, then generate.");
+      return;
+    }
     const res = await fetch("/api/reports/batch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -63,7 +66,8 @@ export function ReportBuilder({
     <div className="rounded-xl border border-border bg-card p-5">
       <TextSmall className="font-semibold">Report builder</TextSmall>
       <Muted className="mb-4 text-sm">
-        Choose a template, sections, and clients for batch generation.
+        Choose a template and the clients to generate for. Reports are not created until you
+        click generate, and they then appear in those clients&apos; portals.
       </Muted>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -101,7 +105,7 @@ export function ReportBuilder({
       </div>
 
       <div className="mt-4">
-        <Label>Clients (leave empty for all active)</Label>
+        <Label>Clients</Label>
         <div className="mt-2 max-h-40 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
           {clientOptions.map((c) => (
             <label key={c.id} className="flex items-center gap-2 text-sm">
@@ -123,9 +127,9 @@ export function ReportBuilder({
       </div>
 
       <div className="mt-4 flex items-center gap-3">
-        <Button size="sm" disabled={loading} onClick={runBatch}>
+        <Button size="sm" disabled={loading || selectedClients.size === 0} onClick={runBatch}>
           {loading ? <Loader2 className="size-4 animate-spin" /> : null}
-          Run month-end batch
+          Generate for selected
         </Button>
         {result ? <Muted className="text-sm">{result}</Muted> : null}
       </div>

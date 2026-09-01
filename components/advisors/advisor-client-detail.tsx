@@ -25,7 +25,7 @@ import { ClientGoalsWorkspace } from "@/components/advisors/client-goals-workspa
 import { ClientSessionsTab } from "@/components/advisors/client-sessions-tab";
 import { ClientDocumentsTab } from "@/components/advisors/client-documents-tab";
 import { ClientMessagesTab } from "@/components/advisors/client-messages-tab";
-import { ComplianceAuditPanel } from "@/components/advisors/compliance-audit-panel";
+import { ClientNotesWorkspace } from "@/components/advisors/client-notes-workspace";
 import { AdvisorReportsList } from "@/components/reports/advisor-reports-list";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -48,7 +48,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
 import { H1, Muted, TextSmall } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 import type { JaPortfolioSummary } from "@/lib/api/domain/wealth-portfolio";
@@ -121,7 +120,7 @@ export function AdvisorClientDetail() {
   const [assignedAdvisor, setAssignedAdvisor] = useState<WealthAdvisor | null>(null);
   const [advisors, setAdvisors] = useState<AdvisorListRow[]>([]);
   const [nextSession, setNextSession] = useState<string | null>(null);
-  const [notes, setNotes] = useState("");
+  const [sessionAdvisorId, setSessionAdvisorId] = useState<string | null>(null);
   const [reassignOpen, setReassignOpen] = useState(false);
   const [inviteMessage, setInviteMessage] = useState<string | null>(
     inviteErrorFromUrl
@@ -146,7 +145,7 @@ export function AdvisorClientDetail() {
       setUpdates(data.updates ?? []);
       setGoals(data.goals ?? []);
       setAssignedAdvisor(data.assignedAdvisor ?? null);
-      setNotes(data.client?.advisor_notes ?? "");
+      setSessionAdvisorId(data.sessionAdvisorId ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load client");
       setClient(null);
@@ -181,15 +180,20 @@ export function AdvisorClientDetail() {
       .catch(() => undefined);
   }, []);
 
-  async function saveNotes() {
-    if (!client) return;
-    await fetch(`/api/clients/${client.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ advisorNotes: notes }),
-    });
-    load();
-  }
+  const isAssignedClient =
+    sessionAdvisorId == null || client?.advisor_id === sessionAdvisorId;
+  const privateTabs = new Set(["Messages", "Notes"]);
+  const visibleTabs = TABS.filter((tab) => !privateTabs.has(tab) || isAssignedClient);
+
+  useEffect(() => {
+    if (
+      client &&
+      (activeTab === "Messages" || activeTab === "Notes") &&
+      !isAssignedClient
+    ) {
+      setActiveTab("Overview");
+    }
+  }, [activeTab, isAssignedClient, client]);
 
   async function sendInvite() {
     if (!client) return;
@@ -389,7 +393,7 @@ export function AdvisorClientDetail() {
 
       <div className="sticky top-14 z-10 -mx-4 border-b border-border/70 bg-background/90 px-4 backdrop-blur-sm sm:-mx-6 sm:px-6">
         <nav className="flex min-w-max gap-5 overflow-x-auto">
-          {TABS.map((tab) => {
+          {visibleTabs.map((tab) => {
             const active = activeTab === tab;
             return (
               <button
@@ -479,21 +483,7 @@ export function AdvisorClientDetail() {
         </div>
       )}
 
-      {activeTab === "Notes" && (
-        <div className="flex max-w-2xl flex-col gap-6 pb-12">
-          <div className="flex flex-col gap-3">
-            <TextSmall className="font-semibold">Advisor notes</TextSmall>
-            <Textarea rows={10} value={notes} onChange={(e) => setNotes(e.target.value)} />
-            <Button className="w-fit" onClick={saveNotes}>
-              Save notes
-            </Button>
-          </div>
-          <div className="flex flex-col gap-3">
-            <TextSmall className="font-semibold">Audit trail</TextSmall>
-            <ComplianceAuditPanel clientId={client.id} />
-          </div>
-        </div>
-      )}
+      {activeTab === "Notes" && <ClientNotesWorkspace clientId={client.id} />}
 
       <Sheet open={reassignOpen} onOpenChange={setReassignOpen}>
         <SheetContent className="p-0">

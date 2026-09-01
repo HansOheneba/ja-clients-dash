@@ -51,6 +51,7 @@ export async function GET(
   return NextResponse.json({
     client,
     assignedAdvisor,
+    sessionAdvisorId: session.profile.advisor_id ?? null,
     address,
     periods,
     portfolio,

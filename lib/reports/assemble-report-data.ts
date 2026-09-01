@@ -26,6 +26,10 @@ import {
   getStatementPeriodsForClient,
   getTransactionsForPeriod,
 } from "@/lib/wealth/queries";
+import {
+  ALL_REPORT_SECTIONS,
+  type ReportSectionKey,
+} from "@/lib/wealth/wm-types";
 
 export function formatReference(referenceCode: string, date: Date): string {
   const dd = String(date.getDate()).padStart(2, "0");
@@ -124,11 +128,18 @@ function snapshotsByPeriod(snapshots: PortfolioSnapshot[]) {
   return map;
 }
 
+function normalizeSections(sections?: ReportSectionKey[] | null): ReportSectionKey[] {
+  const allowed = new Set(ALL_REPORT_SECTIONS);
+  const picked = (sections ?? []).filter((key) => allowed.has(key));
+  return picked.length > 0 ? picked : [...ALL_REPORT_SECTIONS];
+}
+
 export async function assembleInvestmentReportData(
   clientId: string,
   periodId: string,
   preparedOn = new Date(),
   kind: ReportKind = "monthly",
+  sections?: ReportSectionKey[] | null,
 ): Promise<InvestmentReportData> {
   const [client, period, allPeriods, history, disclaimer, address] = await Promise.all([
     getClientById(clientId),
@@ -144,6 +155,7 @@ export async function assembleInvestmentReportData(
   }
 
   const window = reportWindowForPeriod(period, kind);
+  const includedSections = normalizeSections(sections);
   const overlapping =
     kind === "monthly"
       ? [period]
@@ -282,5 +294,7 @@ export async function assembleInvestmentReportData(
     disclaimerTitle:
       disclaimer?.title ?? "Important Notice Regarding Valuations & Performance",
     disclaimerBody: disclaimer?.body ?? "",
+    includedSections,
+    totalPages: 2 + includedSections.length,
   };
 }

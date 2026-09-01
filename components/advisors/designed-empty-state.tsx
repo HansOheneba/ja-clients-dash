@@ -67,6 +67,39 @@ function TrendMark({ className }: { className?: string }) {
   );
 }
 
+function MessagesMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" className={cn("size-14", className)} aria-hidden>
+      <rect
+        x="10"
+        y="14"
+        width="36"
+        height="28"
+        rx="8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="3"
+        className="text-brand-primary/20"
+      />
+      <path
+        d="M18 26h20M18 32h14"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        className="text-brand-primary/35"
+      />
+      <path
+        d="M38 34l14 8V22a6 6 0 0 0-6-6H38"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinejoin="round"
+        className="text-brand-accent/50"
+      />
+    </svg>
+  );
+}
+
 export function DesignedEmptyState({
   variant,
   title,
@@ -74,7 +107,7 @@ export function DesignedEmptyState({
   action,
   className,
 }: {
-  variant: "allocation" | "trend";
+  variant: "allocation" | "trend" | "messages";
   title: string;
   description: string;
   action?: React.ReactNode;
@@ -89,6 +122,8 @@ export function DesignedEmptyState({
     >
       {variant === "allocation" ? (
         <AllocationMark />
+      ) : variant === "messages" ? (
+        <MessagesMark />
       ) : (
         <TrendMark />
       )}

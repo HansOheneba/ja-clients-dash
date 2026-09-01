@@ -8,7 +8,7 @@ import {
   markThreadReadByAdvisor,
 } from "@/lib/wealth/wm-queries";
 import { getClientById } from "@/lib/wealth/queries";
-import { getAdvisorApiSession, getApiSession } from "@/lib/wealth/session";
+import { canMessageClient, getApiSession } from "@/lib/wealth/session";
 
 export async function GET(request: Request) {
   const session = await getApiSession();
@@ -21,6 +21,14 @@ export async function GET(request: Request) {
     const client = await getClientById(clientId);
     if (!client?.advisor_id) {
       return NextResponse.json({ error: "No advisor" }, { status: 400 });
+    }
+    const isOwnClient =
+      session.profile.role === "client" && session.profile.client_id === clientId;
+    if (!isOwnClient && !canMessageClient(session.profile, client.advisor_id)) {
+      return NextResponse.json(
+        { error: "This client is assigned to another wealth manager" },
+        { status: 403 },
+      );
     }
     const thread = await getOrCreateThread(clientId, client.advisor_id);
     const messages = await listMessages(thread.id);
@@ -52,6 +60,12 @@ export async function POST(request: Request) {
   const client = await getClientById(clientId);
   if (!client?.advisor_id) {
     return NextResponse.json({ error: "No advisor assigned" }, { status: 400 });
+  }
+  if (!canMessageClient(session.profile, client.advisor_id)) {
+    return NextResponse.json(
+      { error: "This client is assigned to another wealth manager" },
+      { status: 403 },
+    );
   }
 
   const thread = await getOrCreateThread(clientId, client.advisor_id);

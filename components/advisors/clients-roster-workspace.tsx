@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronRight, Search } from "lucide-react";
 
 import { SectionLabel } from "@/components/advisors/section-label";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -55,9 +55,11 @@ function statusDotClass(status: string) {
 export function ClientsRosterWorkspace({
   clients,
   advisors,
+  reportsDueCount = 0,
 }: {
   clients: ClientListExtended[];
   advisors: AdvisorListRow[];
+  reportsDueCount?: number;
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -133,16 +135,21 @@ export function ClientsRosterWorkspace({
 
   return (
     <section className="flex flex-col gap-4">
-      {attentionOnboarding + attentionReview > 0 && statusFilter === "all" ? (
+      {attentionOnboarding + attentionReview + reportsDueCount > 0 && statusFilter === "all" ? (
         <div className="flex flex-col gap-2 rounded-(--radius-card) border border-border/60 bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <TextSmall className="font-medium">Needs attention</TextSmall>
             <Muted className="text-[13px]">
-              {attentionOnboarding > 0
-                ? `${attentionOnboarding} still onboarding`
-                : null}
-              {attentionOnboarding > 0 && attentionReview > 0 ? ". " : null}
-              {attentionReview > 0 ? `${attentionReview} review due` : null}.
+              {[
+                attentionOnboarding > 0 ? `${attentionOnboarding} still onboarding` : null,
+                attentionReview > 0 ? `${attentionReview} review due` : null,
+                reportsDueCount > 0
+                  ? `${reportsDueCount} missing a statement PDF`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(". ")}
+              .
             </Muted>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -155,6 +162,14 @@ export function ClientsRosterWorkspace({
               <Button size="sm" variant="outline" onClick={() => setStatusFilter("review_due")}>
                 View reviews
               </Button>
+            ) : null}
+            {reportsDueCount > 0 ? (
+              <Link
+                href="/advisors/dashboard/reports"
+                className={buttonVariants({ size: "sm", variant: "outline" })}
+              >
+                View reports
+              </Link>
             ) : null}
           </div>
         </div>

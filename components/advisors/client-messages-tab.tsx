@@ -9,5 +9,11 @@ export function ClientMessagesTab({
   clientId: string;
   ownRole?: "advisor" | "client";
 }) {
-  return <MessageThread clientId={clientId} ownRole={ownRole} />;
+  return (
+    <MessageThread
+      clientId={clientId}
+      ownRole={ownRole}
+      showAdvisorNames={ownRole === "advisor"}
+    />
+  );
 }

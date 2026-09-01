@@ -28,11 +28,11 @@ export function GenerateReportsGuide() {
             month, type previous and current values for each bucket, then save.
           </li>
           <li>
-            Generate a{" "}
-            <span className="font-medium text-foreground">monthly</span>,{" "}
-            <span className="font-medium text-foreground">quarterly</span>, or{" "}
-            <span className="font-medium text-foreground">annual</span> PDF from that page. The
-            figures come from the months you saved.
+            Click{" "}
+            <span className="font-medium text-foreground">Generate report</span> for a
+            monthly, quarterly, or annual PDF. That is the only way a statement is created.
+            It then appears in the client portal. Outstanding statements stay at the top of
+            this page until you generate them.
           </li>
         </ol>
         <TextSmall className="text-muted-foreground">

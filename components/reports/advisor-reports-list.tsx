@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Download, FileText } from "lucide-react";
 
 import { GenerateReportButton } from "@/components/reports/generate-report-button";
+import { OutstandingReportsNotice } from "@/components/reports/outstanding-reports-notice";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -45,11 +46,13 @@ export function AdvisorReportsList({ clientId }: { clientId?: string }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {clientId ? <OutstandingReportsNotice clientId={clientId} /> : null}
       <div className="flex items-center justify-between gap-3">
         <div>
           <TextSmall className="font-semibold">Investment reports</TextSmall>
           <Muted>
-            Download past statements, or generate a monthly, quarterly, or annual PDF
+            Download past statements. A report only appears in the client portal after you
+            click Generate.
           </Muted>
         </div>
         {clientId ? <GenerateReportButton clientId={clientId} /> : null}

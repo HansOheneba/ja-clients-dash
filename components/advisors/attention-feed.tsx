@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   Calendar,
   FileText,
+  FileWarning,
   MessageSquare,
   AlertCircle,
   ClipboardList,
@@ -20,6 +21,7 @@ const ICONS: Record<AttentionItemType, typeof Calendar> = {
   message: MessageSquare,
   review_due: ClipboardList,
   recap_backlog: Calendar,
+  report_due: FileWarning,
 };
 
 export function AttentionFeed({ items }: { items: AttentionItem[] }) {

@@ -7,15 +7,16 @@ import { PageShell } from "@/components/layout/page-shell";
 import { buttonVariants } from "@/components/ui/button";
 import { H1, Muted } from "@/components/ui/typography";
 import { listAdvisorsWithStats } from "@/lib/wealth/queries";
-import { listClientsExtended } from "@/lib/wealth/wm-queries";
+import { listClientsExtended, listOutstandingReports } from "@/lib/wealth/wm-queries";
 import { requireAdvisor } from "@/lib/wealth/session";
 import { formatUsd } from "@/lib/wealth/constants";
 
 export default async function AdvisorClientsPage() {
   await requireAdvisor();
-  const [clients, advisors] = await Promise.all([
+  const [clients, advisors, outstanding] = await Promise.all([
     listClientsExtended(null),
     listAdvisorsWithStats(),
+    listOutstandingReports(null),
   ]);
 
   const totalAum = clients.reduce((sum, c) => sum + c.aum, 0);
@@ -67,7 +68,11 @@ export default async function AdvisorClientsPage() {
         </div>
       </section>
 
-      <ClientsRosterWorkspace clients={clients} advisors={advisors} />
+      <ClientsRosterWorkspace
+        clients={clients}
+        advisors={advisors}
+        reportsDueCount={new Set(outstanding.map((row) => row.clientId)).size}
+      />
     </PageShell>
   );
 }

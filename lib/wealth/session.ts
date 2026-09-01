@@ -77,6 +77,17 @@ export function canAccessClient(
   return false;
 }
 
+/** Advisors may only access private client workspace (messages, notes) for assigned clients. Admins retain full access. */
+export function canMessageClient(
+  profile: SessionProfile,
+  clientAdvisorId: string | null | undefined,
+) {
+  if (profile.role === "admin") return true;
+  if (!isAdvisorRole(profile.role)) return false;
+  if (!profile.advisor_id) return true;
+  return clientAdvisorId === profile.advisor_id;
+}
+
 export async function getApiSession() {
   const session = await getSessionProfile();
   if (!session?.profile) {

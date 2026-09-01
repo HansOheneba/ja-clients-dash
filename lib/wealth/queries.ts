@@ -245,12 +245,15 @@ export async function reassignAdvisorClients(
   toAdvisorId: string | null,
 ): Promise<number> {
   const rows = await queryDb<{ id: string }>(
-    `UPDATE wealth.clients SET advisor_id = $2
-     WHERE advisor_id = $1
-     RETURNING id`,
-    [fromAdvisorId, toAdvisorId],
+    `SELECT id FROM wealth.clients WHERE advisor_id = $1`,
+    [fromAdvisorId],
   );
-  return rows.length;
+  let count = 0;
+  for (const row of rows) {
+    const updated = await setClientAdvisor(row.id, toAdvisorId);
+    if (updated) count += 1;
+  }
+  return count;
 }
 
 export async function getClientById(clientId: string): Promise<WealthClient | null> {

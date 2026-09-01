@@ -16,8 +16,10 @@ import { statementKindTitle, type ReportKind } from "@/lib/wealth/period-calenda
 type Props = {
   clientId: string;
   periodId?: string;
+  kind?: ReportKind;
   className?: string;
   buttonVariant?: "default" | "outline";
+  compact?: boolean;
 };
 
 const KINDS: { kind: ReportKind; hint: string }[] = [
@@ -26,11 +28,19 @@ const KINDS: { kind: ReportKind; hint: string }[] = [
   { kind: "annual", hint: "Full calendar year" },
 ];
 
+const KIND_ACTION: Record<ReportKind, string> = {
+  monthly: "Generate monthly",
+  quarterly: "Generate quarterly",
+  annual: "Generate annual",
+};
+
 export function GenerateReportButton({
   clientId,
   periodId,
+  kind,
   className,
   buttonVariant = "default",
+  compact = false,
 }: Props) {
   const [loading, setLoading] = useState<ReportKind | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -46,7 +56,7 @@ export function GenerateReportButton({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Generation failed");
-      setMessage(`${data.title ?? "Report"} is ready.`);
+      if (!compact) setMessage(`${data.title ?? "Report"} is ready.`);
       window.dispatchEvent(new CustomEvent("ja:report-generated"));
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Generation failed");
@@ -56,6 +66,25 @@ export function GenerateReportButton({
   }
 
   const busy = loading !== null;
+
+  if (kind) {
+    return (
+      <div className={className}>
+        <Button
+          size="sm"
+          variant={buttonVariant}
+          disabled={busy || !clientId}
+          onClick={() => handleGenerate(kind)}
+        >
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
+          {KIND_ACTION[kind]}
+        </Button>
+        {message ? (
+          <p className="mt-2 text-xs text-destructive">{message}</p>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className={className}>

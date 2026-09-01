@@ -1,3 +1,4 @@
+import type { ReportKind } from "@/lib/wealth/period-calendar";
 import type { ClientStatus, PortfolioBucket } from "@/lib/wealth/types";
 
 export type ReviewCadence = "quarterly" | "semi_annual" | "annual";
@@ -10,7 +11,17 @@ export type AttentionItemType =
   | "document_expiry"
   | "message"
   | "review_due"
-  | "recap_backlog";
+  | "recap_backlog"
+  | "report_due";
+
+export type OutstandingReport = {
+  clientId: string;
+  clientName: string;
+  periodId: string;
+  periodEnd: string;
+  kind: ReportKind;
+  windowLabel: string;
+};
 
 export interface AttentionItem {
   id: string;
@@ -110,9 +121,35 @@ export interface WmMessage {
   thread_id: string;
   sender_role: "advisor" | "client";
   sender_id: string | null;
+  sender_name?: string | null;
   body: string;
   attachment_type: string | null;
   attachment_id: string | null;
+  created_at: string;
+}
+
+export interface ClientAdvisorNote {
+  id: string;
+  client_id: string;
+  author_user_id: string | null;
+  author_advisor_id: string | null;
+  author_name: string;
+  body: string;
+  created_at: string;
+  attachments: ClientInternalDocument[];
+}
+
+export interface ClientInternalDocument {
+  id: string;
+  client_id: string;
+  title: string;
+  description: string;
+  storage_path: string;
+  mime_type: string;
+  file_size_bytes: number | null;
+  uploaded_by: string | null;
+  uploaded_by_advisor_id: string | null;
+  uploader_name: string;
   created_at: string;
 }
 
@@ -141,17 +178,24 @@ export type ReportSectionKey =
   | "performance"
   | "transactions";
 
+export const ALL_REPORT_SECTIONS: ReportSectionKey[] = [
+  "executive_summary",
+  "portfolio_overview",
+  "performance",
+  "transactions",
+];
+
 export const REPORT_TEMPLATES: Record<
   string,
   { label: string; sections: ReportSectionKey[] }
 > = {
   standard_monthly: {
     label: "Standard monthly",
-    sections: ["executive_summary", "portfolio_overview", "performance", "transactions"],
+    sections: [...ALL_REPORT_SECTIONS],
   },
   quarterly_deep_dive: {
     label: "Quarterly deep-dive",
-    sections: ["executive_summary", "portfolio_overview", "performance", "transactions"],
+    sections: [...ALL_REPORT_SECTIONS],
   },
 };
 

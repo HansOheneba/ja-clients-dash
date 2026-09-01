@@ -3,14 +3,24 @@ import { queryDb } from "@/lib/supabase/db";
 import { generateInvestmentReportPdf } from "@/lib/reports/generate-pdf";
 import { insertReport } from "@/lib/wealth/queries";
 import type { ReportKind } from "@/lib/wealth/period-calendar";
+import type { ReportSectionKey } from "@/lib/wealth/wm-types";
 
 export async function createAndStoreReport(
   clientId: string,
   periodId: string,
   generatedBy?: string | null,
   kind: ReportKind = "monthly",
+  options?: {
+    templateKey?: string | null;
+    sections?: ReportSectionKey[] | null;
+  },
 ) {
-  const { buffer, data } = await generateInvestmentReportPdf(clientId, periodId, kind);
+  const { buffer, data } = await generateInvestmentReportPdf(
+    clientId,
+    periodId,
+    kind,
+    options?.sections,
+  );
   const fileName = `${data.reference.replace(/\//g, "-")}.pdf`;
   let storagePath = `${clientId}/${periodId}/${kind}/${fileName}`;
   let storedInBucket = false;
@@ -38,6 +48,8 @@ export async function createAndStoreReport(
     storagePath,
     fileSizeBytes: buffer.length,
     generatedBy,
+    templateKey: options?.templateKey ?? null,
+    sections: data.includedSections,
   });
 
   return { report, data, storedInBucket };
