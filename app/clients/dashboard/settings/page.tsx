@@ -55,6 +55,7 @@ export default async function ClientSettingsPage() {
             {session.profile.role === "client" ? (
               <Link
                 href="/clients/dashboard/profile"
+                prefetch={false}
                 className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-2 w-fit")}
               >
                 View full profile

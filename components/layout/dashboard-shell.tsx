@@ -57,6 +57,7 @@ function DashboardShell({
         <SidebarHeader className="flex gap-3 px-3 pb-4 pt-5">
           <Link
             href={basePath}
+            prefetch={false}
             className="mb-1 flex h-10 w-full shrink-0 items-center rounded-lg px-2 transition-opacity hover:opacity-80 group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:mb-0 group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
           >
             <Image
@@ -97,7 +98,7 @@ function DashboardShell({
                           "group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:rounded-lg",
                           "group-data-[collapsible=icon]:[&>span:not(.badge)]:hidden"
                         )}
-                        render={<Link href={item.href} />}
+                        render={<Link href={item.href} prefetch={false} />}
                       >
                         <NavIcon icon={item.icon} iconSrc={item.iconSrc} label={item.label} />
                         <span className="flex-1">{item.label}</span>
@@ -125,7 +126,7 @@ function DashboardShell({
                 tooltip="Settings"
                 size="lg"
                 className="group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:[&>span]:hidden"
-                render={<Link href={settingsHref} />}
+                render={<Link href={settingsHref} prefetch={false} />}
               >
                 <Settings className="size-5" />
                 <span>Settings</span>

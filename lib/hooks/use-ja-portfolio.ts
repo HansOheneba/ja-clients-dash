@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { isPortfolioEmpty } from "@/components/ui/empty-state";
 import { BUCKET_COLORS } from "@/lib/wealth/constants";
 
 export type LivePortfolioBucket = {
@@ -78,5 +79,7 @@ export function useJaPortfolio(clientId?: string) {
     color: BUCKET_COLORS[b.id as keyof typeof BUCKET_COLORS] ?? "#999",
   }));
 
-  return { data, allocationSlices, loading, error, reload: load };
+  const empty = isPortfolioEmpty(data);
+
+  return { data, allocationSlices, loading, error, reload: load, empty };
 }

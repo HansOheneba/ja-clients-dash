@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
 
 import { DesignedEmptyState } from "@/components/advisors/designed-empty-state";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -46,8 +45,9 @@ export function MessagesWorkspace() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      <div className="grid min-h-[480px] grid-cols-1 gap-4 opacity-45 lg:grid-cols-[280px_1fr]">
+        <div className="rounded-xl border border-border bg-muted/25" />
+        <div className="rounded-xl border border-border bg-muted/25" />
       </div>
     );
   }

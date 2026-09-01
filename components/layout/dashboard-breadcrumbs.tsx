@@ -43,6 +43,7 @@ function DashboardBreadcrumbs({
               ) : (
                 <Link
                   href={crumb.href}
+                  prefetch={false}
                   className="truncate text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {crumb.label}

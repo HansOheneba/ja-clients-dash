@@ -2,7 +2,9 @@ import pg from "pg";
 
 import { supabaseDbPassword, WEALTH_PROJECT_REF } from "@/lib/supabase/env";
 
-let pool: pg.Pool | null = null;
+const globalForDb = globalThis as typeof globalThis & {
+  __jaDbPool?: pg.Pool;
+};
 
 function createPool() {
   if (!supabaseDbPassword) {
@@ -16,15 +18,17 @@ function createPool() {
     database: "postgres",
     password: supabaseDbPassword,
     ssl: { rejectUnauthorized: false },
-    max: 4,
+    max: 3,
+    idleTimeoutMillis: 20_000,
+    allowExitOnIdle: true,
   });
 }
 
 export function getDbPool() {
-  if (!pool) {
-    pool = createPool();
+  if (!globalForDb.__jaDbPool) {
+    globalForDb.__jaDbPool = createPool();
   }
-  return pool;
+  return globalForDb.__jaDbPool;
 }
 
 export async function queryDb<T extends pg.QueryResultRow>(

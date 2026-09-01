@@ -2,6 +2,11 @@
 
 import { GoalCard } from "@/components/goals/goal-card";
 import { GoalsAnalyticsSection } from "@/components/goals/goals-analytics";
+import { ClientEmptyState } from "@/components/ui/empty-state";
+import {
+  DashCard,
+  DashCardContent,
+} from "@/components/ui/dash-card";
 import { Muted } from "@/components/ui/typography";
 import { useCurrency } from "@/lib/currency-context";
 import type { Goal } from "@/lib/data/goals";
@@ -18,10 +23,15 @@ function ClientGoalsView({ goals }: ClientGoalsViewProps) {
 
   if (goals.length === 0) {
     return (
-      <Muted>
-        Your wealth manager has not added goals yet. When they do, target amounts and
-        dates will appear here.
-      </Muted>
+      <DashCard>
+        <DashCardContent>
+          <ClientEmptyState
+            variant="goals"
+            title="No goals yet"
+            description="Your wealth manager has not added goals yet. When they do, target amounts and dates will appear here."
+          />
+        </DashCardContent>
+      </DashCard>
     );
   }
 

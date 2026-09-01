@@ -6,9 +6,10 @@ import {
   listMessageThreads,
   listMessages,
   markThreadReadByAdvisor,
+  markThreadReadByClient,
 } from "@/lib/wealth/wm-queries";
 import { getClientById } from "@/lib/wealth/queries";
-import { canMessageClient, getApiSession } from "@/lib/wealth/session";
+import { canParticipateInMessageThread, getApiSession } from "@/lib/wealth/session";
 
 export async function GET(request: Request) {
   const session = await getApiSession();
@@ -22,9 +23,7 @@ export async function GET(request: Request) {
     if (!client?.advisor_id) {
       return NextResponse.json({ error: "No advisor" }, { status: 400 });
     }
-    const isOwnClient =
-      session.profile.role === "client" && session.profile.client_id === clientId;
-    if (!isOwnClient && !canMessageClient(session.profile, client.advisor_id)) {
+    if (!canParticipateInMessageThread(session.profile, clientId, client.advisor_id)) {
       return NextResponse.json(
         { error: "This client is assigned to another wealth manager" },
         { status: 403 },
@@ -34,6 +33,8 @@ export async function GET(request: Request) {
     const messages = await listMessages(thread.id);
     if (session.profile.role === "advisor") {
       await markThreadReadByAdvisor(thread.id);
+    } else if (session.profile.role === "client") {
+      await markThreadReadByClient(thread.id);
     }
     return NextResponse.json({ thread, messages });
   }
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
   if (!client?.advisor_id) {
     return NextResponse.json({ error: "No advisor assigned" }, { status: 400 });
   }
-  if (!canMessageClient(session.profile, client.advisor_id)) {
+  if (!canParticipateInMessageThread(session.profile, clientId, client.advisor_id)) {
     return NextResponse.json(
       { error: "This client is assigned to another wealth manager" },
       { status: 403 },
@@ -70,9 +71,7 @@ export async function POST(request: Request) {
 
   const thread = await getOrCreateThread(clientId, client.advisor_id);
   const senderRole =
-    session.profile.role === "client" && session.profile.client_id === clientId
-      ? "client"
-      : "advisor";
+    session.profile.role === "client" ? "client" : "advisor";
 
   const message = await insertMessage({
     threadId: thread.id,

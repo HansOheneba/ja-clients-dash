@@ -1,10 +1,11 @@
 import {
+  CalendarDays,
   FileText,
   LayoutDashboard,
+  MessageSquare,
   PieChart,
-  Sparkles,
   Target,
-  User,
+  UserCircle,
 } from "lucide-react";
 
 import { appConfig } from "@/lib/app-config";
@@ -15,14 +16,11 @@ const { dashboard } = appConfig.routes.client;
 const clientNavItems: NavItem[] = [
   { label: "Dashboard", href: dashboard, icon: LayoutDashboard },
   { label: "My Portfolio", href: `${dashboard}/portfolio`, icon: PieChart },
-  { label: "Goals", href: `${dashboard}/goals`, icon: Target },
-  { label: "Reports", href: `${dashboard}/reports`, icon: FileText },
-  { label: "Profile", href: `${dashboard}/profile`, icon: User },
-  {
-    label: "Demo gallery",
-    href: `${dashboard}/demo`,
-    icon: Sparkles,
-  },
+  { label: "My Plan", href: `${dashboard}/goals`, icon: Target },
+  { label: "Sessions", href: `${dashboard}/sessions`, icon: CalendarDays },
+  { label: "Documents", href: `${dashboard}/documents`, icon: FileText },
+  { label: "Messages", href: `${dashboard}/messages`, icon: MessageSquare },
+  { label: "Your Advisor", href: `${dashboard}/advisor`, icon: UserCircle },
 ];
 
 export { clientNavItems };

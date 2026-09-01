@@ -9,7 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Muted } from "@/components/ui/typography";
 
-export function RequestSessionForm({ advisorName }: { advisorName: string }) {
+export function RequestSessionForm({
+  advisorName,
+  onSuccess,
+}: {
+  advisorName: string;
+  onSuccess?: () => void;
+}) {
   const [topic, setTopic] = useState("");
   const [preferredTimes, setPreferredTimes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -30,6 +36,7 @@ export function RequestSessionForm({ advisorName }: { advisorName: string }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not send request");
       setDone(true);
+      onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send request");
     } finally {

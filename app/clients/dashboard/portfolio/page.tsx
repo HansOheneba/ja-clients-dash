@@ -4,7 +4,6 @@ import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 import { AllocationPieChart, AssetAreaChart } from "@/components/charts/asset-charts";
 import { PageShell } from "@/components/layout/page-shell";
-import { ClientReportsPanel } from "@/components/reports/client-reports-panel";
 import {
   DashCard,
   DashCardContent,
@@ -12,6 +11,7 @@ import {
   DashCardHeader,
   DashCardTitle,
 } from "@/components/ui/dash-card";
+import { ClientEmptyState } from "@/components/ui/empty-state";
 import { KpiItem, KpiStrip } from "@/components/ui/kpi-strip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { H1, Muted, TextSmall } from "@/components/ui/typography";
@@ -38,7 +38,7 @@ function ChangeCell({ value }: { value: number | null }) {
 
 export default function ClientPortfolioPage() {
   const { format } = useCurrency();
-  const { data, allocationSlices, loading, error } = useJaPortfolio();
+  const { data, allocationSlices, loading, error, empty } = useJaPortfolio();
 
   if (loading) {
     return (
@@ -95,8 +95,28 @@ export default function ClientPortfolioPage() {
     return (
       <PageShell className="flex flex-col gap-(--spacing-section)">
         <H1>My Portfolio</H1>
-        <Muted>Could not load portfolio. Run the SQL in supabase/manual/001_full_setup.sql and check .env.local.</Muted>
+        <Muted>Could not load portfolio. Try again shortly or contact your wealth manager.</Muted>
         <TextSmall className="text-destructive">{error}</TextSmall>
+      </PageShell>
+    );
+  }
+
+  if (empty) {
+    return (
+      <PageShell className="flex flex-col gap-(--spacing-section)">
+        <header className="flex flex-col gap-1">
+          <H1>My Portfolio</H1>
+          <Muted>JA managed portfolios: Income, Growth, Venture, Treasury, and Cash on Account.</Muted>
+        </header>
+        <DashCard>
+          <DashCardContent>
+            <ClientEmptyState
+              variant="allocation"
+              title="No portfolio data yet"
+              description="Your wealth manager will set up your portfolios shortly. You will see allocation, performance, and activity here once they do."
+            />
+          </DashCardContent>
+        </DashCard>
       </PageShell>
     );
   }
@@ -188,8 +208,6 @@ export default function ClientPortfolioPage() {
           </table>
         </DashCardContent>
       </DashCard>
-
-      <ClientReportsPanel variant="compact" />
     </PageShell>
   );
 }

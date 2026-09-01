@@ -72,7 +72,7 @@ function DashboardTopBarActions({
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             {profileHref && (
-              <DropdownMenuItem render={<Link href={profileHref} />}>
+              <DropdownMenuItem render={<Link href={profileHref} prefetch={false} />}>
                 <User className="size-4" />
                 Settings
               </DropdownMenuItem>

@@ -929,3 +929,110 @@ export async function insertClientInternalDocument(row: {
   const full = await getClientInternalDocument(doc.id);
   return full ?? { ...doc, uploader_name: "Unknown" };
 }
+
+export async function getDocumentRequestById(
+  requestId: string,
+  clientId: string,
+): Promise<DocumentRequest | null> {
+  const rows = await queryDb<DocumentRequest>(
+    `SELECT id, client_id, advisor_id, title, description, due_date::text,
+            status::text, created_at::text
+     FROM wealth.document_requests
+     WHERE id = $1 AND client_id = $2`,
+    [requestId, clientId],
+  );
+  return rows[0] ?? null;
+}
+
+export async function getFirstPendingDocumentRequest(
+  clientId: string,
+): Promise<DocumentRequest | null> {
+  const rows = await queryDb<DocumentRequest>(
+    `SELECT id, client_id, advisor_id, title, description, due_date::text,
+            status::text, created_at::text
+     FROM wealth.document_requests
+     WHERE client_id = $1 AND status = 'pending'
+     ORDER BY due_date ASC NULLS LAST, created_at DESC
+     LIMIT 1`,
+    [clientId],
+  );
+  return rows[0] ?? null;
+}
+
+export async function insertVaultDocument(row: {
+  clientId: string;
+  title: string;
+  category: string;
+  storagePath: string;
+  fileSizeBytes: number;
+  mimeType: string;
+  documentRequestId?: string | null;
+  uploadedByRole: "client" | "advisor";
+  uploadedBy?: string | null;
+}): Promise<VaultDocument> {
+  const rows = await queryDb<VaultDocument>(
+    `INSERT INTO wealth.vault_documents (
+       client_id, title, category, storage_path, file_size_bytes, mime_type,
+       document_request_id, uploaded_by_role, uploaded_by
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING id, client_id, title, category, storage_path, file_size_bytes,
+               mime_type, expires_on::text, document_request_id, uploaded_by_role,
+               created_at::text`,
+    [
+      row.clientId,
+      row.title,
+      row.category,
+      row.storagePath,
+      row.fileSizeBytes,
+      row.mimeType,
+      row.documentRequestId ?? null,
+      row.uploadedByRole,
+      row.uploadedBy ?? null,
+    ],
+  );
+  return rows[0]!;
+}
+
+export async function fulfillDocumentRequest(requestId: string): Promise<void> {
+  await queryDb(
+    `UPDATE wealth.document_requests
+     SET status = 'uploaded', updated_at = now()
+     WHERE id = $1`,
+    [requestId],
+  );
+}
+
+export async function getVaultDocumentById(
+  documentId: string,
+  clientId: string,
+): Promise<VaultDocument | null> {
+  const rows = await queryDb<VaultDocument>(
+    `SELECT id, client_id, title, category, storage_path, file_size_bytes,
+            mime_type, expires_on::text, document_request_id, uploaded_by_role,
+            created_at::text
+     FROM wealth.vault_documents
+     WHERE id = $1 AND client_id = $2`,
+    [documentId, clientId],
+  );
+  return rows[0] ?? null;
+}
+
+export async function markThreadReadByClient(threadId: string): Promise<void> {
+  await queryDb(
+    `UPDATE wealth.message_threads SET client_last_read_at = now() WHERE id = $1`,
+    [threadId],
+  );
+}
+
+export async function getClientUnreadMessageCount(clientId: string): Promise<number> {
+  const rows = await queryDb<{ count: string }>(
+    `SELECT COUNT(*)::int AS count
+     FROM wealth.messages m
+     JOIN wealth.message_threads t ON t.id = m.thread_id
+     WHERE t.client_id = $1
+       AND m.sender_role = 'advisor'
+       AND (t.client_last_read_at IS NULL OR m.created_at > t.client_last_read_at)`,
+    [clientId],
+  );
+  return Number(rows[0]?.count ?? 0);
+}

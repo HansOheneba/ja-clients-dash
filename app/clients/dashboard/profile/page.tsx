@@ -1,5 +1,4 @@
 import { PageShell } from "@/components/layout/page-shell";
-import { RequestSessionForm } from "@/components/clients/request-session-form";
 import {
   DashCard,
   DashCardContent,
@@ -15,8 +14,6 @@ import {
   getClientAddress,
   getClientById,
 } from "@/lib/wealth/queries";
-import { formatAvailabilityNotes } from "@/lib/wealth/availability";
-import { formatTimezoneLabel } from "@/lib/wealth/timezones";
 import { formatCountryName, formatRegionName } from "@/lib/wealth/countries";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -98,7 +95,12 @@ export default async function ProfilePage() {
 
       <div className="rounded-lg border border-amber-200 bg-amber-50/50 px-4 py-2.5">
         <Muted className="text-amber-800">
-          Your advisor maintains this record. Ask them if anything here needs updating.
+          Your advisor maintains this record. Ask them if anything here needs updating. Contact
+          details for your wealth manager are on{" "}
+          <Link href="/clients/dashboard/advisor" className="underline underline-offset-2">
+            Your Advisor
+          </Link>
+          .
         </Muted>
       </div>
 
@@ -164,7 +166,7 @@ export default async function ProfilePage() {
               <DashCardDescription>
                 A short note from your wealth manager. Named goals with amounts and dates are on{" "}
                 <Link href="/clients/dashboard/goals" className="underline underline-offset-2">
-                  My Goals
+                  My Plan
                 </Link>
                 .
               </DashCardDescription>
@@ -176,44 +178,6 @@ export default async function ProfilePage() {
             </TextSmall>
           </DashCardContent>
         </DashCard>
-
-        {advisor ? (
-          <DashCard className="lg:col-span-2">
-            <DashCardHeader>
-              <div>
-                <DashCardTitle>Your wealth manager</DashCardTitle>
-                <DashCardDescription>
-                  {advisor.full_name}
-                  {advisor.title ? ` · ${advisor.title}` : ""}
-                </DashCardDescription>
-              </div>
-            </DashCardHeader>
-            <DashCardContent className="flex flex-col gap-4">
-              {advisor.bio ? (
-                <TextSmall className="leading-relaxed text-muted-foreground">
-                  {advisor.bio}
-                </TextSmall>
-              ) : (
-                <Muted>Your wealth manager will add a short introduction soon.</Muted>
-              )}
-              {advisor.phone ? (
-                <Row label="Phone" value={advisor.phone} />
-              ) : null}
-              {advisor.timezone ? (
-                <Row label="Timezone" value={formatTimezoneLabel(advisor.timezone)} />
-              ) : null}
-              {advisor.availability_notes ? (
-                <div className="flex flex-col gap-1">
-                  <Muted>Availability for sessions</Muted>
-                  <TextSmall className="whitespace-pre-wrap">
-                    {formatAvailabilityNotes(advisor.availability_notes)}
-                  </TextSmall>
-                </div>
-              ) : null}
-              <RequestSessionForm advisorName={advisor.full_name} />
-            </DashCardContent>
-          </DashCard>
-        ) : null}
       </div>
     </PageShell>
   );

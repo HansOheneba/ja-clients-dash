@@ -1,5 +1,10 @@
-import { redirect } from "next/navigation";
+import { ClientDocumentsPageClient } from "@/app/clients/dashboard/documents/documents-client";
+import { requireClient } from "@/lib/wealth/session";
 
-export default function ClientDocumentsRedirect() {
-  redirect("/clients/dashboard/reports");
+export default async function ClientDocumentsPage() {
+  const session = await requireClient();
+
+  return (
+    <ClientDocumentsPageClient clientId={session.profile.client_id ?? null} />
+  );
 }

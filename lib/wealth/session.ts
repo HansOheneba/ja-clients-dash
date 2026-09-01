@@ -31,7 +31,8 @@ export async function getSessionProfile(): Promise<{
 
 export async function requireUser(): Promise<AuthedSession> {
   const session = await getSessionProfile();
-  if (!session?.profile) redirect("/login");
+  if (!session) redirect("/login");
+  if (!session.profile) redirect("/login?error=account");
   return { userId: session.userId, email: session.email, profile: session.profile };
 }
 
@@ -88,6 +89,18 @@ export function canMessageClient(
   return clientAdvisorId === profile.advisor_id;
 }
 
+/** Clients may message their advisor; advisors only for assigned clients; admins have full access. */
+export function canParticipateInMessageThread(
+  profile: SessionProfile,
+  clientId: string,
+  clientAdvisorId: string | null | undefined,
+) {
+  if (profile.role === "client") {
+    return profile.client_id === clientId;
+  }
+  return canMessageClient(profile, clientAdvisorId);
+}
+
 export async function getApiSession() {
   const session = await getSessionProfile();
   if (!session?.profile) {
@@ -108,6 +121,21 @@ export async function getAdvisorApiSession() {
     return { ok: false as const, response: jsonError("Forbidden", 403) };
   }
   return session;
+}
+
+export async function getClientApiSession() {
+  const session = await getApiSession();
+  if (!session.ok) return session;
+  const clientId = session.profile.client_id;
+  if (session.profile.role !== "client" || !clientId) {
+    return { ok: false as const, response: jsonError("Forbidden", 403) };
+  }
+  return {
+    ok: true as const,
+    userId: session.userId,
+    email: session.email,
+    profile: { ...session.profile, client_id: clientId },
+  };
 }
 
 export async function getAdminApiSession() {

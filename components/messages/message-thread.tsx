@@ -12,9 +12,25 @@ import { cn } from "@/lib/utils";
 
 type MessageStatus = "sending" | "sent" | "failed";
 
+/** Poll only when Supabase Realtime is unavailable. */
+const REALTIME_POLL_FALLBACK_MS = 60_000;
+
 type ThreadMessage = WmMessage & {
   _status?: MessageStatus;
 };
+
+function messageFromRealtimeRow(row: Record<string, unknown>): WmMessage {
+  return {
+    id: String(row.id),
+    thread_id: String(row.thread_id),
+    sender_role: row.sender_role as WmMessage["sender_role"],
+    sender_id: row.sender_id ? String(row.sender_id) : null,
+    body: String(row.body),
+    attachment_type: row.attachment_type ? String(row.attachment_type) : null,
+    attachment_id: row.attachment_id ? String(row.attachment_id) : null,
+    created_at: String(row.created_at ?? new Date().toISOString()),
+  };
+}
 
 function isSameDay(a: Date, b: Date) {
   return (
@@ -210,20 +226,33 @@ export function MessageThread({
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async () => {
-    setLoadError(null);
-    const res = await fetch(`/api/messages?clientId=${clientId}`);
-    const data = await res.json();
-    if (!res.ok) {
-      setLoadError(data.error ?? "Could not load messages");
-      setMessages([]);
-      setThreadId(null);
-      setLoading(false);
-      return;
+  const load = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
+    if (!background) {
+      setLoadError(null);
     }
-    setMessages((data.messages ?? []).map((m: WmMessage) => ({ ...m, _status: "sent" as const })));
-    setThreadId(data.thread?.id ?? null);
-    setLoading(false);
+
+    try {
+      const res = await fetch(`/api/messages?clientId=${clientId}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (!background) {
+          setLoadError(
+            typeof data.error === "string" ? data.error : "Could not load messages",
+          );
+          setMessages([]);
+          setThreadId(null);
+        }
+        return;
+      }
+
+      setMessages(
+        (data.messages ?? []).map((m: WmMessage) => ({ ...m, _status: "sent" as const })),
+      );
+      setThreadId(data.thread?.id ?? null);
+      if (!background) setLoadError(null);
+    } finally {
+      if (!background) setLoading(false);
+    }
   }, [clientId]);
 
   useEffect(() => {
@@ -233,28 +262,94 @@ export function MessageThread({
 
   useEffect(() => {
     if (!threadId) return;
+
     const supabase = createClient();
-    const channel = supabase
-      .channel(`messages-${threadId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "wealth",
-          table: "messages",
-          filter: `thread_id=eq.${threadId}`,
-        },
-        (payload) => {
-          const row = payload.new as WmMessage;
-          setMessages((prev) => upsertMessage(prev, row));
-        },
-      )
-      .subscribe();
+    let active = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let pollId: number | null = null;
+
+    const stopFallbackPoll = () => {
+      if (pollId !== null) {
+        window.clearInterval(pollId);
+        pollId = null;
+      }
+    };
+
+    const startFallbackPoll = () => {
+      stopFallbackPoll();
+      pollId = window.setInterval(() => {
+        if (document.visibilityState === "visible") {
+          void load({ background: true });
+        }
+      }, REALTIME_POLL_FALLBACK_MS);
+    };
+
+    const disconnectRealtime = () => {
+      stopFallbackPoll();
+      if (channel) {
+        void supabase.removeChannel(channel);
+        channel = null;
+      }
+    };
+
+    const connectRealtime = async () => {
+      if (!active || document.visibilityState !== "visible" || channel) return;
+
+      await supabase.auth.getSession();
+      if (!active || document.visibilityState !== "visible") return;
+
+      channel = supabase
+        .channel(`messages-${threadId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "wealth",
+            table: "messages",
+            filter: `thread_id=eq.${threadId}`,
+          },
+          (payload) => {
+            setMessages((prev) =>
+              upsertMessage(prev, messageFromRealtimeRow(payload.new as Record<string, unknown>)),
+            );
+          },
+        )
+        .subscribe((status) => {
+          if (!active) return;
+          if (status === "SUBSCRIBED") {
+            stopFallbackPoll();
+          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            if (channel) {
+              void supabase.removeChannel(channel);
+              channel = null;
+            }
+            void load({ background: true });
+            startFallbackPoll();
+          }
+        });
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void load({ background: true });
+        void connectRealtime();
+      } else {
+        disconnectRealtime();
+      }
+    };
+
+    if (document.visibilityState === "visible") {
+      void connectRealtime();
+    }
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
-      void supabase.removeChannel(channel);
+      active = false;
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      disconnectRealtime();
     };
-  }, [threadId]);
+  }, [threadId, load]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -317,14 +412,6 @@ export function MessageThread({
     void sendMessage(body);
   }
 
-  if (loading) {
-    return (
-      <div className={cn("flex justify-center py-12", className)}>
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
   if (loadError) {
     return (
       <div className={cn("flex flex-col items-center justify-center gap-2 p-8", className)}>
@@ -335,10 +422,23 @@ export function MessageThread({
   }
 
   return (
-    <div className={cn("flex h-[min(520px,70vh)] flex-col rounded-xl border border-border", className)}>
-      <div className="flex-1 space-y-1 overflow-y-auto p-3">
-        {messages.length === 0 ? (
+    <div
+      className={cn(
+        "flex h-[min(520px,70vh)] flex-col rounded-xl border border-border transition-colors",
+        loading && "bg-muted/25",
+        className,
+      )}
+    >
+      <div
+        className={cn(
+          "flex-1 space-y-1 overflow-y-auto p-3 transition-opacity",
+          loading && "pointer-events-none opacity-45",
+        )}
+      >
+        {!loading && messages.length === 0 ? (
           <Muted className="text-center">No messages yet. Start the conversation.</Muted>
+        ) : loading ? (
+          <Muted className="text-center">Loading messages…</Muted>
         ) : (
           <MessageTimeline
             messages={messages}
@@ -349,7 +449,13 @@ export function MessageThread({
         )}
         <div ref={bottomRef} />
       </div>
-      <form onSubmit={handleSubmit} className="flex gap-2 border-t border-border p-3">
+      <form
+        onSubmit={handleSubmit}
+        className={cn(
+          "flex gap-2 border-t border-border p-3 transition-opacity",
+          loading && "pointer-events-none opacity-45",
+        )}
+      >
         <Input
           ref={inputRef}
           value={body}
@@ -357,8 +463,14 @@ export function MessageThread({
           placeholder={placeholder}
           className="flex-1"
           autoComplete="off"
+          disabled={loading}
         />
-        <Button type="submit" size="icon" disabled={!body.trim()} aria-label="Send message">
+        <Button
+          type="submit"
+          size="icon"
+          disabled={loading || !body.trim()}
+          aria-label="Send message"
+        >
           <Send className="size-4" />
         </Button>
       </form>

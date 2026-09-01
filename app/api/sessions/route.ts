@@ -7,9 +7,17 @@ import {
   updateSessionRecap,
 } from "@/lib/wealth/wm-queries";
 import { getClientById } from "@/lib/wealth/queries";
-import { getAdvisorApiSession } from "@/lib/wealth/session";
+import { getAdvisorApiSession, getClientApiSession } from "@/lib/wealth/session";
 
 export async function GET(request: Request) {
+  const clientSession = await getClientApiSession();
+  if (clientSession.ok) {
+    const clientId = clientSession.profile.client_id;
+    const sessions = await listSessions(null, clientId);
+    const requests = await listSessionRequests(null, clientId);
+    return NextResponse.json({ sessions, requests });
+  }
+
   const session = await getAdvisorApiSession();
   if (!session.ok) return session.response;
 

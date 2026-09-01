@@ -14,6 +14,9 @@ export const appConfig = {
     client: {
       dashboard: "/clients/dashboard",
       messages: "/clients/dashboard/messages",
+      documents: "/clients/dashboard/documents",
+      sessions: "/clients/dashboard/sessions",
+      advisor: "/clients/dashboard/advisor",
       concierge: "/clients/dashboard/concierge",
       profile: "/clients/dashboard/profile",
       settings: "/clients/dashboard/settings",

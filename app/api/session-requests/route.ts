@@ -10,9 +10,15 @@ import {
   listSessionRequests,
   updateSessionRequest,
 } from "@/lib/wealth/wm-queries";
-import { getAdvisorApiSession, getApiSession } from "@/lib/wealth/session";
+import { getAdvisorApiSession, getApiSession, getClientApiSession } from "@/lib/wealth/session";
 
 export async function GET(request: Request) {
+  const clientSession = await getClientApiSession();
+  if (clientSession.ok) {
+    const requests = await listSessionRequests(null, clientSession.profile.client_id);
+    return NextResponse.json({ requests });
+  }
+
   const session = await getAdvisorApiSession();
   if (!session.ok) return session.response;
 
@@ -104,6 +110,15 @@ export async function PATCH(request: Request) {
       sessionId: wmSession.id,
       responseNote: body.note ? String(body.note) : undefined,
     });
+
+    await insertClientUpdate({
+      clientId: existing.client_id,
+      kind: "general",
+      title: "Session confirmed",
+      body: `Your wealth manager confirmed a session: ${existing.topic}. Scheduled for ${new Date(scheduledAt).toLocaleString("en-GB")}.`,
+      createdBy: session.userId,
+    });
+
     return NextResponse.json({ request: updated, session: wmSession });
   }
 
@@ -116,11 +131,25 @@ export async function PATCH(request: Request) {
   }
 
   if (action === "reschedule") {
+    const existing = (await listSessionRequests(session.profile.advisor_id)).find(
+      (r) => r.id === id,
+    );
     const updated = await updateSessionRequest(id, {
       status: "rescheduled",
       proposedTimes: String(body.proposedTimes ?? ""),
       responseNote: body.note ? String(body.note) : undefined,
     });
+
+    if (existing) {
+      await insertClientUpdate({
+        clientId: existing.client_id,
+        kind: "general",
+        title: "Session reschedule proposed",
+        body: `Your wealth manager proposed new times for: ${existing.topic}.`,
+        createdBy: session.userId,
+      });
+    }
+
     return NextResponse.json({ request: updated });
   }
 
