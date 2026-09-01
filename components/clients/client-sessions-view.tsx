@@ -1,13 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
-import { RequestSessionForm } from "@/components/clients/request-session-form";
+import { ProposeSessionForm } from "@/components/sessions/propose-session-form";
+import { SessionProposalCard } from "@/components/sessions/session-proposal-card";
 import { ClientEmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
 import {
   DashCard,
   DashCardContent,
@@ -15,38 +14,31 @@ import {
   DashCardTitle,
 } from "@/components/ui/dash-card";
 import { H3, Muted, TextSmall } from "@/components/ui/typography";
+import { formatSessionDateTime } from "@/lib/sessions/datetime";
+import { formatSessionFormat } from "@/lib/sessions/format";
+import { isActiveProposal } from "@/lib/sessions/proposal-utils";
 import type { SessionRequest, WmSession } from "@/lib/wealth/wm-types";
 import { cn } from "@/lib/utils";
-
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 function PastSessionRecap({ session }: { session: WmSession }) {
   const [open, setOpen] = useState(false);
   const hasRecap =
     session.recap_topics.length > 0 ||
     session.recap_decisions.length > 0 ||
+    session.recap_action_items.length > 0 ||
     session.recap_next_steps.length > 0;
 
   return (
     <div className="rounded-xl border border-border/40 bg-card">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((value) => !value)}
         className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
       >
         <div>
           <TextSmall className="font-medium">{session.title}</TextSmall>
           <Muted className="text-sm">
-            {session.scheduled_at ? formatDateTime(session.scheduled_at) : "Completed session"}
+            {session.scheduled_at ? formatSessionDateTime(session.scheduled_at) : "Completed session"}
           </Muted>
         </div>
         {hasRecap ? (
@@ -61,8 +53,8 @@ function PastSessionRecap({ session }: { session: WmSession }) {
             <div>
               <H3 className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Topics</H3>
               <ul className="list-inside list-disc text-sm">
-                {session.recap_topics.map((t) => (
-                  <li key={t}>{t}</li>
+                {session.recap_topics.map((topic) => (
+                  <li key={topic}>{topic}</li>
                 ))}
               </ul>
             </div>
@@ -71,8 +63,18 @@ function PastSessionRecap({ session }: { session: WmSession }) {
             <div>
               <H3 className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Decisions</H3>
               <ul className="list-inside list-disc text-sm">
-                {session.recap_decisions.map((d) => (
-                  <li key={d}>{d}</li>
+                {session.recap_decisions.map((decision) => (
+                  <li key={decision}>{decision}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {session.recap_action_items.length > 0 ? (
+            <div>
+              <H3 className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Action items</H3>
+              <ul className="list-inside list-disc text-sm">
+                {session.recap_action_items.map((item) => (
+                  <li key={item}>{item}</li>
                 ))}
               </ul>
             </div>
@@ -81,8 +83,8 @@ function PastSessionRecap({ session }: { session: WmSession }) {
             <div>
               <H3 className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Next steps</H3>
               <ul className="list-inside list-disc text-sm">
-                {session.recap_next_steps.map((s) => (
-                  <li key={s}>{s}</li>
+                {session.recap_next_steps.map((step) => (
+                  <li key={step}>{step}</li>
                 ))}
               </ul>
             </div>
@@ -101,71 +103,55 @@ export function ClientSessionsView({ advisorName }: { advisorName: string }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [sessionsRes, requestsRes] = await Promise.all([
-        fetch("/api/sessions"),
-        fetch("/api/session-requests"),
-      ]);
-      const sessionsData = await sessionsRes.json();
-      const requestsData = await requestsRes.json();
-      setSessions(sessionsData.sessions ?? []);
-      setRequests(requestsData.requests ?? []);
+      const res = await fetch("/api/sessions");
+      const data = await res.json();
+      setSessions(data.sessions ?? []);
+      setRequests(data.requests ?? []);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
-  if (loading) {
-    return (
-      <div className="flex justify-center py-16">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
   const now = new Date();
+  const activeProposals = requests.filter(isActiveProposal);
   const upcoming = sessions.filter(
-    (s) =>
-      s.scheduled_at &&
-      new Date(s.scheduled_at) >= now &&
-      s.status !== "cancelled" &&
-      s.status !== "completed",
+    (session) =>
+      session.scheduled_at &&
+      new Date(session.scheduled_at) >= now &&
+      session.status === "confirmed",
   );
   const past = sessions.filter(
-    (s) =>
-      s.status === "completed" ||
-      (s.scheduled_at && new Date(s.scheduled_at) < now) ||
-      !s.scheduled_at,
+    (session) =>
+      session.status === "completed" ||
+      (session.scheduled_at && new Date(session.scheduled_at) < now) ||
+      !session.scheduled_at,
   );
-  const pendingRequests = requests.filter((r) => r.status === "pending");
 
   return (
-    <div className="flex flex-col gap-6">
-      <DashCard>
+    <div
+      className={cn(
+        "flex flex-col gap-6 transition-opacity",
+        loading && "pointer-events-none opacity-45",
+      )}
+    >
+      <DashCard className={loading ? "bg-muted/20" : undefined}>
         <DashCardHeader>
           <DashCardTitle>Upcoming session</DashCardTitle>
         </DashCardHeader>
         <DashCardContent>
-          {upcoming.length > 0 ? (
+          {loading ? (
+            <Muted className="text-sm">Loading sessions...</Muted>
+          ) : upcoming.length > 0 ? (
             <div className="flex flex-col gap-3">
-              {upcoming.map((s) => (
-                <div key={s.id} className="rounded-xl border border-border/40 p-4">
-                  <TextSmall className="font-medium">{s.title}</TextSmall>
-                  <Muted className="text-sm">{formatDateTime(s.scheduled_at!)}</Muted>
-                  <Badge variant="secondary" className="mt-2 capitalize">
-                    {s.format}
-                  </Badge>
-                  <div className="mt-3">
-                    <Link
-                      href="/clients/dashboard/messages"
-                      className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-                    >
-                      Message to reschedule
-                    </Link>
-                  </div>
+              {upcoming.map((session) => (
+                <div key={session.id} className="rounded-xl border border-border/40 p-4">
+                  <TextSmall className="font-medium">{session.title}</TextSmall>
+                  <Muted className="text-sm">{formatSessionDateTime(session.scheduled_at!)}</Muted>
+                  <Badge variant="secondary">{formatSessionFormat(session.format)}</Badge>
                 </div>
               ))}
             </div>
@@ -173,25 +159,24 @@ export function ClientSessionsView({ advisorName }: { advisorName: string }) {
             <ClientEmptyState
               variant="sessions"
               compact
-              title="No upcoming session"
-              description="Request time with your wealth manager and they will confirm a slot."
+              title="No confirmed session"
+              description="Propose a time below. Your session is locked in once you and your wealth manager both agree."
             />
           )}
         </DashCardContent>
       </DashCard>
 
-      {pendingRequests.length > 0 ? (
+      {activeProposals.length > 0 ? (
         <section>
-          <H3 className="mb-3 text-base">Pending requests</H3>
-          <div className="flex flex-col gap-2">
-            {pendingRequests.map((r) => (
-              <div key={r.id} className="rounded-xl border border-border/40 p-4">
-                <TextSmall className="font-medium">{r.topic}</TextSmall>
-                <Muted className="text-sm">Preferred: {r.preferred_times}</Muted>
-                <Badge variant="outline" className="mt-2">
-                  Awaiting confirmation
-                </Badge>
-              </div>
+          <H3 className="mb-3 text-base">Pending confirmation</H3>
+          <div className="flex flex-col gap-3">
+            {activeProposals.map((request) => (
+              <SessionProposalCard
+                key={request.id}
+                request={request}
+                viewerRole="client"
+                onUpdated={load}
+              />
             ))}
           </div>
         </section>
@@ -202,16 +187,22 @@ export function ClientSessionsView({ advisorName }: { advisorName: string }) {
           <DashCardTitle>Request a session</DashCardTitle>
         </DashCardHeader>
         <DashCardContent>
-          <RequestSessionForm advisorName={advisorName} onSuccess={load} />
+          <ProposeSessionForm
+            submitLabel="Request session"
+            successMessage={`Your session proposal was sent to ${advisorName}. It will be confirmed once you both agree on the time.`}
+            onSuccess={load}
+          />
         </DashCardContent>
       </DashCard>
 
       <section>
         <H3 className="mb-3 text-base">Past sessions</H3>
-        {past.length > 0 ? (
+        {loading ? (
+          <Muted className="text-sm">Loading past sessions...</Muted>
+        ) : past.length > 0 ? (
           <div className="flex flex-col gap-2">
-            {past.map((s) => (
-              <PastSessionRecap key={s.id} session={s} />
+            {past.map((session) => (
+              <PastSessionRecap key={session.id} session={session} />
             ))}
           </div>
         ) : (

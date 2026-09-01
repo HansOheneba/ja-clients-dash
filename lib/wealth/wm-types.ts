@@ -3,6 +3,7 @@ import type { ClientStatus, PortfolioBucket } from "@/lib/wealth/types";
 
 export type ReviewCadence = "quarterly" | "semi_annual" | "annual";
 export type SessionRequestStatus = "pending" | "accepted" | "declined" | "rescheduled";
+export type SessionParty = "client" | "advisor";
 export type WmSessionStatus = "requested" | "confirmed" | "completed" | "cancelled";
 export type DocumentRequestStatus = "pending" | "uploaded" | "expired";
 export type AttentionItemType =
@@ -70,6 +71,11 @@ export interface SessionRequest {
   topic: string;
   preferred_times: string;
   proposed_times: string | null;
+  proposed_at: string | null;
+  proposed_by: SessionParty | null;
+  client_agreed_at: string | null;
+  advisor_agreed_at: string | null;
+  format: string;
   status: SessionRequestStatus;
   session_id: string | null;
   response_note: string | null;

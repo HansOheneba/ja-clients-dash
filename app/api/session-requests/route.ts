@@ -1,16 +1,52 @@
 import { NextResponse } from "next/server";
 
+import { formatSessionDateTime } from "@/lib/sessions/datetime";
 import {
   getClientById,
   insertClientUpdate,
-  insertSessionRequest,
 } from "@/lib/wealth/queries";
 import {
+  getSessionRequestById,
   insertSession,
+  insertSessionProposal,
   listSessionRequests,
   updateSessionRequest,
+  updateSessionSchedule,
 } from "@/lib/wealth/wm-queries";
+import type { SessionParty } from "@/lib/wealth/wm-types";
 import { getAdvisorApiSession, getApiSession, getClientApiSession } from "@/lib/wealth/session";
+
+async function finalizeConfirmedSession(request: Awaited<ReturnType<typeof getSessionRequestById>>) {
+  if (!request?.proposed_at) return null;
+
+  if (request.session_id) {
+    return updateSessionSchedule(request.session_id, {
+      scheduledAt: request.proposed_at,
+      status: "confirmed",
+      title: request.topic,
+      format: request.format,
+    });
+  }
+
+  return insertSession({
+    clientId: request.client_id,
+    advisorId: request.advisor_id,
+    sessionRequestId: request.id,
+    title: request.topic,
+    scheduledAt: request.proposed_at,
+    format: request.format,
+    status: "confirmed",
+  });
+}
+
+async function notifyClient(
+  clientId: string,
+  title: string,
+  body: string,
+  createdBy: string,
+) {
+  await insertClientUpdate({ clientId, kind: "general", title, body, createdBy });
+}
 
 export async function GET(request: Request) {
   const clientSession = await getClientApiSession();
@@ -31,49 +67,63 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const session = await getApiSession();
   if (!session.ok) return session.response;
-  if (session.profile.role !== "client" || !session.profile.client_id) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
   const body = await request.json().catch(() => ({}));
   const topic = String(body.topic ?? "").trim();
-  const preferredTimes = String(body.preferredTimes ?? "").trim();
+  const proposedAt = String(body.proposedAt ?? "");
+  const format = String(body.format ?? "video");
 
-  if (!topic || !preferredTimes) {
-    return NextResponse.json(
-      { error: "Topic and preferred times are required" },
-      { status: 400 },
-    );
+  if (!topic || !proposedAt) {
+    return NextResponse.json({ error: "Topic and date/time are required" }, { status: 400 });
   }
 
-  const client = await getClientById(session.profile.client_id);
+  let clientId: string | null = null;
+  let proposedBy: SessionParty;
+
+  if (session.profile.role === "client" && session.profile.client_id) {
+    clientId = session.profile.client_id;
+    proposedBy = "client";
+  } else if (session.profile.role === "advisor" || session.profile.role === "admin") {
+    clientId = String(body.clientId ?? "");
+    proposedBy = "advisor";
+  } else {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (!clientId) {
+    return NextResponse.json({ error: "clientId required" }, { status: 400 });
+  }
+
+  const client = await getClientById(clientId);
   if (!client?.advisor_id) {
-    return NextResponse.json(
-      { error: "No wealth manager assigned to your account yet" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "No wealth manager assigned" }, { status: 400 });
   }
 
-  const row = await insertSessionRequest({
+  const requestRow = await insertSessionProposal({
     clientId: client.id,
     advisorId: client.advisor_id,
     topic,
-    preferredTimes,
+    proposedAt,
+    proposedBy,
+    format,
+    preferredTimesLabel: formatSessionDateTime(proposedAt),
   });
 
-  await insertClientUpdate({
-    clientId: client.id,
-    kind: "general",
-    title: "Session request sent",
-    body: `You requested a session: ${topic}`,
-    createdBy: session.userId,
-  });
+  const actorLabel = proposedBy === "client" ? "Your client" : "Your wealth manager";
+  await notifyClient(
+    client.id,
+    proposedBy === "client" ? "Session request sent" : "Session suggested",
+    proposedBy === "client"
+      ? `You requested a session: ${topic} on ${formatSessionDateTime(proposedAt)}.`
+      : `${actorLabel} suggested a session: ${topic} on ${formatSessionDateTime(proposedAt)}. Please confirm or suggest another time.`,
+    session.userId,
+  );
 
-  return NextResponse.json({ id: row.id });
+  return NextResponse.json({ request: requestRow });
 }
 
 export async function PATCH(request: Request) {
-  const session = await getAdvisorApiSession();
+  const session = await getApiSession();
   if (!session.ok) return session.response;
 
   const body = await request.json().catch(() => ({}));
@@ -82,73 +132,111 @@ export async function PATCH(request: Request) {
 
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-  if (action === "accept") {
-    const scheduledAt = String(body.scheduledAt ?? "");
-    if (!scheduledAt) {
-      return NextResponse.json({ error: "scheduledAt required" }, { status: 400 });
-    }
-    const existing = (await listSessionRequests(session.profile.advisor_id)).find(
-      (r) => r.id === id,
-    );
-    if (!existing) {
-      return NextResponse.json({ error: "Request not found" }, { status: 404 });
-    }
-    const client = await getClientById(existing.client_id);
-    const advisorId = client?.advisor_id ?? session.profile.advisor_id;
-    if (!advisorId) {
-      return NextResponse.json({ error: "No advisor" }, { status: 400 });
-    }
-    const wmSession = await insertSession({
-      clientId: existing.client_id,
-      advisorId,
-      sessionRequestId: id,
-      title: existing.topic,
-      scheduledAt,
-    });
+  const existing = await getSessionRequestById(id);
+  if (!existing) {
+    return NextResponse.json({ error: "Request not found" }, { status: 404 });
+  }
+
+  const party: SessionParty | null =
+    session.profile.role === "client" && session.profile.client_id === existing.client_id
+      ? "client"
+      : session.profile.role === "advisor" || session.profile.role === "admin"
+        ? "advisor"
+        : null;
+
+  if (!party) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (action === "agree") {
+    const now = new Date().toISOString();
     const updated = await updateSessionRequest(id, {
+      ...(party === "client" ? { clientAgreedAt: now } : { advisorAgreedAt: now }),
+      status: "pending",
+    });
+    if (!updated) {
+      return NextResponse.json({ error: "Could not update request" }, { status: 500 });
+    }
+
+    const bothAgreed = Boolean(updated.client_agreed_at && updated.advisor_agreed_at);
+    if (!bothAgreed) {
+      await notifyClient(
+        existing.client_id,
+        "Session confirmation pending",
+        party === "client"
+          ? `You agreed to ${existing.topic}. Waiting for your wealth manager to confirm.`
+          : `Your wealth manager agreed to ${existing.topic}. Please confirm the time.`,
+        session.userId,
+      );
+      return NextResponse.json({ request: updated });
+    }
+
+    const wmSession = await finalizeConfirmedSession(updated);
+    const accepted = await updateSessionRequest(id, {
       status: "accepted",
-      sessionId: wmSession.id,
-      responseNote: body.note ? String(body.note) : undefined,
+      sessionId: wmSession?.id,
     });
 
-    await insertClientUpdate({
-      clientId: existing.client_id,
-      kind: "general",
-      title: "Session confirmed",
-      body: `Your wealth manager confirmed a session: ${existing.topic}. Scheduled for ${new Date(scheduledAt).toLocaleString("en-GB")}.`,
-      createdBy: session.userId,
+    await notifyClient(
+      existing.client_id,
+      "Session confirmed",
+      `Your session "${existing.topic}" is confirmed for ${formatSessionDateTime(updated.proposed_at!)}.`,
+      session.userId,
+    );
+
+    return NextResponse.json({ request: accepted, session: wmSession });
+  }
+
+  if (action === "propose") {
+    const proposedAt = String(body.proposedAt ?? "");
+    if (!proposedAt) {
+      return NextResponse.json({ error: "proposedAt required" }, { status: 400 });
+    }
+
+    const now = new Date().toISOString();
+    const updated = await updateSessionRequest(id, {
+      proposedAt,
+      proposedBy: party,
+      preferredTimesLabel: formatSessionDateTime(proposedAt),
+      clientAgreedAt: party === "client" ? now : null,
+      advisorAgreedAt: party === "advisor" ? now : null,
+      status: "rescheduled",
+      format: body.format ? String(body.format) : undefined,
     });
 
-    return NextResponse.json({ request: updated, session: wmSession });
+    if (existing.session_id) {
+      await updateSessionSchedule(existing.session_id, {
+        scheduledAt: proposedAt,
+        status: "requested",
+      });
+    }
+
+    await notifyClient(
+      existing.client_id,
+      "Session time updated",
+      `${party === "client" ? "Your client" : "Your wealth manager"} proposed a new time for ${existing.topic}: ${formatSessionDateTime(proposedAt)}.`,
+      session.userId,
+    );
+
+    return NextResponse.json({ request: updated });
   }
 
   if (action === "decline") {
+    if (party !== "advisor") {
+      return NextResponse.json({ error: "Only advisors can decline requests" }, { status: 403 });
+    }
+
     const updated = await updateSessionRequest(id, {
       status: "declined",
       responseNote: body.note ? String(body.note) : undefined,
     });
-    return NextResponse.json({ request: updated });
-  }
 
-  if (action === "reschedule") {
-    const existing = (await listSessionRequests(session.profile.advisor_id)).find(
-      (r) => r.id === id,
+    await notifyClient(
+      existing.client_id,
+      "Session request declined",
+      `Your wealth manager could not take the session request for ${existing.topic}.`,
+      session.userId,
     );
-    const updated = await updateSessionRequest(id, {
-      status: "rescheduled",
-      proposedTimes: String(body.proposedTimes ?? ""),
-      responseNote: body.note ? String(body.note) : undefined,
-    });
-
-    if (existing) {
-      await insertClientUpdate({
-        clientId: existing.client_id,
-        kind: "general",
-        title: "Session reschedule proposed",
-        body: `Your wealth manager proposed new times for: ${existing.topic}.`,
-        createdBy: session.userId,
-      });
-    }
 
     return NextResponse.json({ request: updated });
   }

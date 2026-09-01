@@ -467,7 +467,9 @@ export async function listSessionRequests(
 ): Promise<SessionRequest[]> {
   const rows = await queryDb<SessionRequest & { client_name: string }>(
     `SELECT sr.id, sr.client_id, sr.advisor_id, sr.topic, sr.preferred_times,
-            sr.proposed_times, sr.status::text, sr.session_id, sr.response_note,
+            sr.proposed_times, sr.proposed_at::text, sr.proposed_by,
+            sr.client_agreed_at::text, sr.advisor_agreed_at::text, sr.format,
+            sr.status::text, sr.session_id, sr.response_note,
             sr.created_at::text, sr.responded_at::text,
             c.full_name AS client_name
      FROM wealth.session_requests sr
@@ -477,7 +479,70 @@ export async function listSessionRequests(
      ORDER BY sr.created_at DESC`,
     [advisorId ?? null, clientId ?? null],
   );
-  return rows.map((r) => ({ ...r, status: r.status as SessionRequestStatus }));
+  return rows.map((r) => ({
+    ...r,
+    status: r.status as SessionRequestStatus,
+    proposed_by: r.proposed_by as SessionRequest["proposed_by"],
+  }));
+}
+
+export async function getSessionRequestById(id: string): Promise<SessionRequest | null> {
+  const rows = await queryDb<SessionRequest>(
+    `SELECT sr.id, sr.client_id, sr.advisor_id, sr.topic, sr.preferred_times,
+            sr.proposed_times, sr.proposed_at::text, sr.proposed_by,
+            sr.client_agreed_at::text, sr.advisor_agreed_at::text, sr.format,
+            sr.status::text, sr.session_id, sr.response_note,
+            sr.created_at::text, sr.responded_at::text
+     FROM wealth.session_requests sr
+     WHERE sr.id = $1`,
+    [id],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    ...row,
+    status: row.status as SessionRequestStatus,
+    proposed_by: row.proposed_by as SessionRequest["proposed_by"],
+  };
+}
+
+export async function insertSessionProposal(row: {
+  clientId: string;
+  advisorId: string;
+  topic: string;
+  proposedAt: string;
+  proposedBy: "client" | "advisor";
+  format?: string;
+  preferredTimesLabel: string;
+}) {
+  const clientAgreedAt = row.proposedBy === "client" ? new Date().toISOString() : null;
+  const advisorAgreedAt = row.proposedBy === "advisor" ? new Date().toISOString() : null;
+  const rows = await queryDb<SessionRequest>(
+    `INSERT INTO wealth.session_requests (
+       client_id, advisor_id, topic, preferred_times, proposed_at, proposed_by,
+       client_agreed_at, advisor_agreed_at, format, status
+     ) VALUES ($1, $2, $3, $4, $5::timestamptz, $6, $7::timestamptz, $8::timestamptz, $9, 'pending')
+     RETURNING id, client_id, advisor_id, topic, preferred_times, proposed_times,
+               proposed_at::text, proposed_by, client_agreed_at::text, advisor_agreed_at::text,
+               format, status::text, session_id, response_note, created_at::text, responded_at::text`,
+    [
+      row.clientId,
+      row.advisorId,
+      row.topic,
+      row.preferredTimesLabel,
+      row.proposedAt,
+      row.proposedBy,
+      clientAgreedAt,
+      advisorAgreedAt,
+      row.format ?? "video",
+    ],
+  );
+  const created = rows[0]!;
+  return {
+    ...created,
+    status: created.status as SessionRequestStatus,
+    proposed_by: created.proposed_by as SessionRequest["proposed_by"],
+  };
 }
 
 export async function updateSessionRequest(
@@ -485,29 +550,102 @@ export async function updateSessionRequest(
   fields: {
     status?: SessionRequestStatus;
     proposedTimes?: string;
+    proposedAt?: string;
+    proposedBy?: "client" | "advisor";
+    clientAgreedAt?: string | null;
+    advisorAgreedAt?: string | null;
     sessionId?: string;
     responseNote?: string;
+    format?: string;
+    preferredTimesLabel?: string;
   },
 ): Promise<SessionRequest | null> {
   const rows = await queryDb<SessionRequest>(
     `UPDATE wealth.session_requests SET
        status = COALESCE($2::wealth.session_request_status, status),
        proposed_times = COALESCE($3, proposed_times),
-       session_id = COALESCE($4::uuid, session_id),
-       response_note = COALESCE($5, response_note),
+       proposed_at = COALESCE($4::timestamptz, proposed_at),
+       proposed_by = COALESCE($5, proposed_by),
+       client_agreed_at = CASE WHEN $6::text = '__clear__' THEN NULL
+                             WHEN $6 IS NOT NULL THEN $6::timestamptz
+                             ELSE client_agreed_at END,
+       advisor_agreed_at = CASE WHEN $7::text = '__clear__' THEN NULL
+                              WHEN $7 IS NOT NULL THEN $7::timestamptz
+                              ELSE advisor_agreed_at END,
+       session_id = COALESCE($8::uuid, session_id),
+       response_note = COALESCE($9, response_note),
+       format = COALESCE($10, format),
+       preferred_times = COALESCE($11, preferred_times),
        responded_at = CASE WHEN $2 IS NOT NULL THEN now() ELSE responded_at END
      WHERE id = $1
      RETURNING id, client_id, advisor_id, topic, preferred_times, proposed_times,
-               status::text, session_id, response_note, created_at::text, responded_at::text`,
+               proposed_at::text, proposed_by, client_agreed_at::text, advisor_agreed_at::text,
+               format, status::text, session_id, response_note, created_at::text, responded_at::text`,
     [
       id,
       fields.status ?? null,
       fields.proposedTimes ?? null,
+      fields.proposedAt ?? null,
+      fields.proposedBy ?? null,
+      fields.clientAgreedAt === null
+        ? "__clear__"
+        : (fields.clientAgreedAt ?? null),
+      fields.advisorAgreedAt === null
+        ? "__clear__"
+        : (fields.advisorAgreedAt ?? null),
       fields.sessionId ?? null,
       fields.responseNote ?? null,
+      fields.format ?? null,
+      fields.preferredTimesLabel ?? null,
     ],
   );
-  return rows[0] ? { ...rows[0], status: rows[0].status as SessionRequestStatus } : null;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    ...row,
+    status: row.status as SessionRequestStatus,
+    proposed_by: row.proposed_by as SessionRequest["proposed_by"],
+  };
+}
+
+export async function updateSessionSchedule(
+  sessionId: string,
+  fields: {
+    scheduledAt?: string;
+    status?: WmSessionStatus;
+    title?: string;
+    format?: string;
+  },
+): Promise<WmSession | null> {
+  const rows = await queryDb<WmSession>(
+    `UPDATE wealth.sessions SET
+       scheduled_at = COALESCE($2::timestamptz, scheduled_at),
+       status = COALESCE($3::wealth.session_status, status),
+       title = COALESCE($4, title),
+       format = COALESCE($5, format),
+       updated_at = now()
+     WHERE id = $1
+     RETURNING id, client_id, advisor_id, session_request_id, title, scheduled_at::text,
+               status::text, format, recap_topics, recap_decisions, recap_action_items,
+               recap_next_steps, recap_logged_at::text, created_at::text`,
+    [
+      sessionId,
+      fields.scheduledAt ?? null,
+      fields.status ?? null,
+      fields.title ?? null,
+      fields.format ?? null,
+    ],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    ...row,
+    status: row.status as WmSessionStatus,
+    recap_topics: row.recap_topics ?? [],
+    recap_decisions: row.recap_decisions ?? [],
+    recap_action_items: row.recap_action_items ?? [],
+    recap_next_steps: row.recap_next_steps ?? [],
+  };
 }
 
 export async function insertSession(row: {

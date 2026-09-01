@@ -1,27 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { ProposeSessionForm } from "@/components/sessions/propose-session-form";
+import { SessionProposalCard } from "@/components/sessions/session-proposal-card";
+import { SessionRecapForm } from "@/components/sessions/session-recap-form";
 import { Badge } from "@/components/ui/badge";
+import {
+  DashCard,
+  DashCardContent,
+  DashCardHeader,
+  DashCardTitle,
+} from "@/components/ui/dash-card";
 import { H3, Muted, TextSmall } from "@/components/ui/typography";
+import { formatSessionDateTime } from "@/lib/sessions/datetime";
+import { formatSessionFormat } from "@/lib/sessions/format";
+import { isActiveProposal, needsRecap } from "@/lib/sessions/proposal-utils";
 import type { SessionRequest, WmSession } from "@/lib/wealth/wm-types";
+import { cn } from "@/lib/utils";
 
 export function ClientSessionsTab({ clientId }: { clientId: string }) {
   const [sessions, setSessions] = useState<WmSession[]>([]);
   const [requests, setRequests] = useState<SessionRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [recapSessionId, setRecapSessionId] = useState<string | null>(null);
-  const [recap, setRecap] = useState({
-    topics: "",
-    decisions: "",
-    actionItems: "",
-    nextSteps: "",
-  });
+  const [recapSession, setRecapSession] = useState<WmSession | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/sessions?clientId=${clientId}`);
@@ -32,83 +34,64 @@ export function ClientSessionsTab({ clientId }: { clientId: string }) {
   }, [clientId]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
-  async function acceptRequest(id: string) {
-    const scheduledAt = prompt("Enter scheduled date/time (ISO format):");
-    if (!scheduledAt) return;
-    await fetch("/api/session-requests", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, action: "accept", scheduledAt }),
-    });
-    load();
-  }
+  const now = new Date();
+  const activeProposals = requests.filter(isActiveProposal);
+  const upcoming = sessions.filter(
+    (session) =>
+      session.scheduled_at &&
+      new Date(session.scheduled_at) >= now &&
+      session.status === "confirmed",
+  );
+  const past = sessions.filter(
+    (session) =>
+      !session.scheduled_at ||
+      new Date(session.scheduled_at) < now ||
+      session.status === "completed",
+  );
 
-  async function saveRecap() {
-    if (!recapSessionId) return;
+  async function saveRecap(recap: {
+    topics: string[];
+    decisions: string[];
+    actionItems: string[];
+    nextSteps: string[];
+  }) {
+    if (!recapSession) return;
     await fetch("/api/sessions", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        sessionId: recapSessionId,
-        topics: recap.topics.split("\n").filter(Boolean),
-        decisions: recap.decisions.split("\n").filter(Boolean),
-        actionItems: recap.actionItems.split("\n").filter(Boolean),
-        nextSteps: recap.nextSteps.split("\n").filter(Boolean),
+        sessionId: recapSession.id,
+        topics: recap.topics,
+        decisions: recap.decisions,
+        actionItems: recap.actionItems,
+        nextSteps: recap.nextSteps,
       }),
     });
-    setRecapSessionId(null);
-    load();
+    setRecapSession(null);
+    void load();
   }
-
-  if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  const upcoming = sessions.filter(
-    (s) => s.scheduled_at && new Date(s.scheduled_at) >= new Date() && s.status !== "cancelled",
-  );
-  const past = sessions.filter(
-    (s) => !s.scheduled_at || new Date(s.scheduled_at) < new Date() || s.status === "completed",
-  );
-  const pending = requests.filter((r) => r.status === "pending");
 
   return (
-    <div className="flex flex-col gap-6 pb-12">
-      {pending.length > 0 ? (
+    <div
+      className={cn(
+        "flex flex-col gap-6 pb-12 transition-opacity",
+        loading && "pointer-events-none opacity-45",
+      )}
+    >
+      {activeProposals.length > 0 ? (
         <section>
-          <H3 className="mb-3 text-base">Pending requests</H3>
-          <div className="flex flex-col gap-2">
-            {pending.map((r) => (
-              <div key={r.id} className="rounded-xl border border-border p-4">
-                <TextSmall className="font-medium">{r.topic}</TextSmall>
-                <Muted className="text-sm">Preferred: {r.preferred_times}</Muted>
-                <div className="mt-2 flex gap-2">
-                  <Button size="sm" onClick={() => acceptRequest(r.id)}>
-                    Accept
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      await fetch("/api/session-requests", {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ id: r.id, action: "decline" }),
-                      });
-                      load();
-                    }}
-                  >
-                    Decline
-                  </Button>
-                </div>
-              </div>
+          <H3 className="mb-3 text-base">Pending confirmation</H3>
+          <div className="flex flex-col gap-3">
+            {activeProposals.map((request) => (
+              <SessionProposalCard
+                key={request.id}
+                request={request}
+                viewerRole="advisor"
+                onUpdated={load}
+              />
             ))}
           </div>
         </section>
@@ -117,20 +100,19 @@ export function ClientSessionsTab({ clientId }: { clientId: string }) {
       <section>
         <H3 className="mb-3 text-base">Upcoming sessions</H3>
         {upcoming.length === 0 ? (
-          <Muted>No upcoming sessions scheduled.</Muted>
+          <Muted>No confirmed upcoming sessions.</Muted>
         ) : (
           <div className="flex flex-col gap-2">
-            {upcoming.map((s) => (
-              <div key={s.id} className="rounded-xl border border-border p-4">
+            {upcoming.map((session) => (
+              <div key={session.id} className="rounded-xl border border-border p-4">
                 <div className="flex items-center justify-between gap-2">
-                  <TextSmall className="font-medium">{s.title}</TextSmall>
-                  <Badge variant="secondary">{s.status}</Badge>
+                  <TextSmall className="font-medium">{session.title}</TextSmall>
+                  <Badge variant="secondary">{formatSessionFormat(session.format)}</Badge>
                 </div>
                 <Muted className="text-sm">
-                  {s.scheduled_at
-                    ? new Date(s.scheduled_at).toLocaleString("en-GB")
-                    : "TBD"}{" "}
-                  · {s.format}
+                  {session.scheduled_at
+                    ? formatSessionDateTime(session.scheduled_at)
+                    : "TBD"}
                 </Muted>
               </div>
             ))}
@@ -144,25 +126,29 @@ export function ClientSessionsTab({ clientId }: { clientId: string }) {
           <Muted>No past sessions yet.</Muted>
         ) : (
           <div className="flex flex-col gap-2">
-            {past.map((s) => (
-              <div key={s.id} className="rounded-xl border border-border p-4">
+            {past.map((session) => (
+              <div key={session.id} className="rounded-xl border border-border p-4">
                 <div className="flex items-center justify-between gap-2">
-                  <TextSmall className="font-medium">{s.title}</TextSmall>
-                  {!s.recap_logged_at ? (
-                    <Button size="sm" variant="outline" onClick={() => setRecapSessionId(s.id)}>
+                  <TextSmall className="font-medium">{session.title}</TextSmall>
+                  {needsRecap(session) ? (
+                    <button
+                      type="button"
+                      className="text-sm font-medium text-primary hover:underline"
+                      onClick={() => setRecapSession(session)}
+                    >
                       Log recap
-                    </Button>
-                  ) : (
+                    </button>
+                  ) : session.recap_logged_at ? (
                     <Badge variant="secondary">Recap logged</Badge>
-                  )}
+                  ) : null}
                 </div>
-                {s.recap_logged_at ? (
+                {session.recap_logged_at ? (
                   <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-                    {s.recap_topics.length > 0 ? (
-                      <p>Topics: {s.recap_topics.join("; ")}</p>
+                    {session.recap_topics.length > 0 ? (
+                      <p>Topics: {session.recap_topics.join("; ")}</p>
                     ) : null}
-                    {s.recap_decisions.length > 0 ? (
-                      <p>Decisions: {s.recap_decisions.join("; ")}</p>
+                    {session.recap_decisions.length > 0 ? (
+                      <p>Decisions: {session.recap_decisions.join("; ")}</p>
                     ) : null}
                   </div>
                 ) : null}
@@ -172,100 +158,26 @@ export function ClientSessionsTab({ clientId }: { clientId: string }) {
         )}
       </section>
 
-      {recapSessionId ? (
-        <div className="rounded-xl border border-border bg-muted/20 p-4">
-          <H3 className="mb-3 text-base">Log session recap</H3>
-          <div className="grid gap-3">
-            <div>
-              <Label>Topics (one per line)</Label>
-              <Textarea
-                value={recap.topics}
-                onChange={(e) => setRecap((r) => ({ ...r, topics: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>Decisions</Label>
-              <Textarea
-                value={recap.decisions}
-                onChange={(e) => setRecap((r) => ({ ...r, decisions: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>Action items</Label>
-              <Textarea
-                value={recap.actionItems}
-                onChange={(e) => setRecap((r) => ({ ...r, actionItems: e.target.value }))}
-              />
-            </div>
-            <div>
-              <Label>Next steps</Label>
-              <Textarea
-                value={recap.nextSteps}
-                onChange={(e) => setRecap((r) => ({ ...r, nextSteps: e.target.value }))}
-              />
-            </div>
-          </div>
-          <div className="mt-3 flex gap-2">
-            <Button size="sm" onClick={saveRecap}>
-              Save recap
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setRecapSessionId(null)}>
-              Cancel
-            </Button>
-          </div>
-        </div>
+      {recapSession ? (
+        <SessionRecapForm
+          sessionTitle={recapSession.title}
+          onSave={saveRecap}
+          onCancel={() => setRecapSession(null)}
+        />
       ) : null}
 
-      <section>
-        <H3 className="mb-3 text-base">Schedule session</H3>
-        <ScheduleSessionForm clientId={clientId} onCreated={load} />
-      </section>
+      <DashCard>
+        <DashCardHeader>
+          <DashCardTitle>Suggest a session</DashCardTitle>
+        </DashCardHeader>
+        <DashCardContent>
+          <ProposeSessionForm
+            clientId={clientId}
+            submitLabel="Suggest session"
+            onSuccess={load}
+          />
+        </DashCardContent>
+      </DashCard>
     </div>
-  );
-}
-
-function ScheduleSessionForm({
-  clientId,
-  onCreated,
-}: {
-  clientId: string;
-  onCreated: () => void;
-}) {
-  const [title, setTitle] = useState("Advisory session");
-  const [scheduledAt, setScheduledAt] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!scheduledAt) return;
-    setLoading(true);
-    await fetch("/api/sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId, title, scheduledAt }),
-    });
-    setLoading(false);
-    onCreated();
-  }
-
-  return (
-    <form onSubmit={submit} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-      <div className="flex-1">
-        <Label htmlFor="sess-title">Title</Label>
-        <Input id="sess-title" value={title} onChange={(e) => setTitle(e.target.value)} />
-      </div>
-      <div className="flex-1">
-        <Label htmlFor="sess-at">Date and time</Label>
-        <Input
-          id="sess-at"
-          type="datetime-local"
-          value={scheduledAt}
-          onChange={(e) => setScheduledAt(e.target.value)}
-        />
-      </div>
-      <Button type="submit" size="sm" disabled={loading}>
-        Schedule
-      </Button>
-    </form>
   );
 }
