@@ -49,7 +49,7 @@ export function AdvisorReportsList({ clientId }: { clientId?: string }) {
       {clientId ? <OutstandingReportsNotice clientId={clientId} /> : null}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <TextSmall className="font-semibold">Investment reports</TextSmall>
+          <TextSmall className="font-semibold">Wealth reports</TextSmall>
           <Muted>
             Download past statements. A report only appears in the client portal after you
             click Generate.

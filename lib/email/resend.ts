@@ -77,7 +77,7 @@ export async function sendPortalInviteEmail(params: {
     html: wrapEmail(`
       <h1 style="font-size: 24px; color: #202356; margin-bottom: 8px;">Welcome, ${params.clientName}</h1>
       <p style="font-size: 15px; line-height: 1.6; color: #444;">
-        Your JA Wealth client portal is ready. Sign in with this email address to view your portfolio and download investment reports.
+        Your JA Wealth client portal is ready. Sign in with this email address to view your portfolio and download wealth reports.
       </p>
       <p style="font-size: 14px; color: #555;">Client number: <strong>${params.clientNumber}</strong></p>
       <p style="margin: 24px 0;">

@@ -199,7 +199,7 @@ export function AddClientForm({
         <Section
           step={1}
           title="Personal details"
-          description="Name, email, and statement address are printed on the investment report. Email is also used for the portal invite."
+          description="Name, email, and statement address are printed on the wealth report. Email is also used for the portal invite."
         >
           <FieldGroup>
             <FieldLabel htmlFor="fullName" required>
@@ -260,7 +260,7 @@ export function AddClientForm({
               </Select>
               <Muted className="text-xs">
                 Whether they already have a will, a trust, both, or neither. This stays on their
-                profile. It does not appear on the investment report.
+                profile. It does not appear on the wealth report.
               </Muted>
             </FieldGroup>
           </FormRow>

@@ -77,7 +77,7 @@ const clients: AdvisorClient[] = [
     pendingRequests: 0,
     openTasks: 1,
     recentActivity: [
-      { title: "Q2 2026 investment report generated", date: "15 Jul 2026", type: "document" },
+      { title: "Q2 2026 wealth report generated", date: "15 Jul 2026", type: "document" },
       { title: "Statement data updated for Q2 2026", date: "1 Jul 2026", type: "note" },
     ],
     notes: "Sample wealth client with quarterly statement data through Q2 2026. Use Statement data to edit figures or Reports to generate PDFs.",

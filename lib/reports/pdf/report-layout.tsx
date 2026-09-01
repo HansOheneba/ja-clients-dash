@@ -9,7 +9,7 @@ export function RunningHeader({ clientName }: { clientName: string }) {
   return (
     <View style={reportStyles.runningHeader} fixed>
       <Text style={reportStyles.runningHeaderText}>
-        JA Wealth | Investment Portfolio Report | {clientName} | Confidential
+        JA Wealth | Wealth Report | {clientName} | Confidential
       </Text>
     </View>
   );
@@ -97,7 +97,7 @@ export function CoverPage({
       >
         <Image src={logoSrc} style={reportStyles.coverLogo} />
         <View style={reportStyles.coverRule} />
-        <Text style={reportStyles.coverTitle}>Investment Portfolio Report</Text>
+        <Text style={reportStyles.coverTitle}>Wealth Report</Text>
         <Text style={reportStyles.coverSubtitle}>{data.clientName}</Text>
         {data.reportKindTitle ? (
           <Text style={reportStyles.coverSubtitle}>{data.reportKindTitle}</Text>

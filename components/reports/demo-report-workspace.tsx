@@ -133,7 +133,7 @@ export function DemoReportWorkspace({
       const url = URL.createObjectURL(blob);
       const disposition = res.headers.get("Content-Disposition");
       const match = disposition?.match(/filename="([^"]+)"/);
-      const fileName = match?.[1] ?? "investment-report.pdf";
+      const fileName = match?.[1] ?? "wealth-report.pdf";
       const link = document.createElement("a");
       link.href = url;
       link.download = fileName;
@@ -217,7 +217,7 @@ export function DemoReportWorkspace({
           <div>
             <DashCardTitle>Portfolio buckets</DashCardTitle>
             <DashCardDescription>
-              These figures are what the investment report PDF prints. Change a value, then
+              These figures are what the wealth report PDF prints. Change a value, then
               generate.
             </DashCardDescription>
           </div>

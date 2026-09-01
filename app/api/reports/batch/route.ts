@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       await notifyClient({
         clientId,
         kind: "report",
-        title: "New investment report",
+        title: "New wealth report",
         body: `${report.title} is ready to download in your documents vault.`,
         createdBy: session.userId,
         email: true,

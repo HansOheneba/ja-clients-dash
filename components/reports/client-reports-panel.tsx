@@ -70,7 +70,7 @@ export function ClientReportsPanel({
       <DashCard className={className}>
         <DashCardHeader className="mb-2">
           <div>
-            <DashCardTitle>Investment reports</DashCardTitle>
+            <DashCardTitle>Wealth reports</DashCardTitle>
             <DashCardDescription>
               Download formal statements prepared by your wealth manager
             </DashCardDescription>
@@ -109,7 +109,7 @@ export function ClientReportsPanel({
           ) : (
             <div className="flex flex-col gap-2">
               <Muted>
-                No statements yet. Your wealth manager publishes investment reports here when
+                No statements yet. Your wealth manager publishes wealth reports here when
                 they are ready.
               </Muted>
               <Link
@@ -131,7 +131,7 @@ export function ClientReportsPanel({
         <DashCardContent>
           <TextSmall className="leading-relaxed text-muted-foreground">
             <span className="font-medium text-foreground">How statements work.</span> Your
-            wealth manager generates investment reports from their portal. When a new report
+            wealth manager generates wealth reports from their portal. When a new report
             is ready, you can view or download it here. Clients cannot generate reports
             themselves.
           </TextSmall>
@@ -145,7 +145,7 @@ export function ClientReportsPanel({
               <FileText className="size-5 text-brand-primary" />
             </div>
             <div>
-              <DashCardTitle>Your investment reports</DashCardTitle>
+              <DashCardTitle>Your wealth reports</DashCardTitle>
               <DashCardDescription>
                 {loading
                   ? "Loading..."

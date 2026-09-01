@@ -32,7 +32,7 @@ export const ALL_BUCKETS: PortfolioBucket[] = [
   "coa",
 ];
 
-/** Household estate planning snapshot. Not used on the investment report. */
+/** Household estate planning snapshot. Not used on the wealth report. */
 export const ESTATE_STATUS_OPTIONS = [
   "No will or trust yet",
   "Will in place",

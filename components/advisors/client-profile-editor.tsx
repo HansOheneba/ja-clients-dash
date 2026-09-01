@@ -188,7 +188,7 @@ export function ClientProfileEditor({
               </Select>
               <p className="text-xs text-muted-foreground">
                 Whether they already have a will, a trust, both, or neither. Not used on the
-                investment report.
+                wealth report.
               </p>
             </FieldGroup>
           </FormRow>

@@ -17,7 +17,7 @@ import { H1, Muted, TextSmall } from "@/components/ui/typography";
 const SAMPLE_REPORTS = [
   {
     id: "john-doe",
-    name: "John Doe | Q2 2026 investment report",
+    name: "John Doe | Q2 2026 wealth report",
     date: "30 June 2026",
     size: "Sample PDF",
   },
@@ -42,7 +42,7 @@ export default function ClientDemoReportsPage() {
       const match = disposition?.match(/filename="([^"]+)"/);
       const link = document.createElement("a");
       link.href = url;
-      link.download = match?.[1] ?? "investment-report.pdf";
+      link.download = match?.[1] ?? "wealth-report.pdf";
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -74,7 +74,7 @@ export default function ClientDemoReportsPage() {
       <DashCard>
         <DashCardHeader>
           <div>
-            <DashCardTitle>Sample investment reports</DashCardTitle>
+            <DashCardTitle>Sample wealth reports</DashCardTitle>
             <DashCardDescription>Placeholder vault for design review</DashCardDescription>
           </div>
         </DashCardHeader>

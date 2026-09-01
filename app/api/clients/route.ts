@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   const address = body.address ?? {};
   if (!String(address.line1 ?? "").trim() || !String(address.city ?? "").trim()) {
     return NextResponse.json(
-      { error: "Statement address line and city are required for the investment report" },
+      { error: "Statement address line and city are required for the wealth report" },
       { status: 400 },
     );
   }
