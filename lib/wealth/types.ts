@@ -26,6 +26,8 @@ export type UpdateKind =
 
 export type GoalStatus = "on-track" | "at-risk" | "ahead" | "in-progress";
 
+export type ReviewCadence = "quarterly" | "semi_annual" | "annual";
+
 export interface ClientGoal {
   id: string;
   client_id: string;
@@ -39,6 +41,7 @@ export interface ClientGoal {
   probability_pct: number;
   status: GoalStatus;
   advisor_note: string;
+  linked_bucket: PortfolioBucket | null;
   created_at: string;
   updated_at: string;
 }
@@ -58,6 +61,9 @@ export interface WealthAdvisor {
   timezone: string | null;
   availability_notes: string | null;
   onboarding_completed_at: string | null;
+  notify_sessions?: string;
+  notify_documents?: string;
+  notify_messages?: string;
   created_at?: string;
 }
 
@@ -89,6 +95,10 @@ export interface WealthClient {
   auth_user_id: string | null;
   invited_at: string | null;
   last_login_at: string | null;
+  review_cadence: ReviewCadence | null;
+  next_review_date: string | null;
+  last_contact_date: string | null;
+  risk_assessed_at: string | null;
   created_at?: string;
 }
 
@@ -153,6 +163,9 @@ export interface WealthReport {
   storage_path: string;
   file_size_bytes: number | null;
   status: "draft" | "published" | "archived";
+  sections: string[] | null;
+  template_key: string | null;
+  sent_at: string | null;
 }
 
 export interface WealthDisclaimer {
@@ -190,5 +203,7 @@ export const CLIENT_SELECT = `
   inception_date::text, advisor_id, status::text, risk_profile,
   investment_horizon, primary_objective, marital_status, dependents,
   estate_status, financial_goals, advisor_notes, date_of_birth::text,
-  auth_user_id, invited_at::text, last_login_at::text, created_at::text
+  auth_user_id, invited_at::text, last_login_at::text,
+  review_cadence::text, next_review_date::text, last_contact_date::text,
+  risk_assessed_at::text, created_at::text
 `;

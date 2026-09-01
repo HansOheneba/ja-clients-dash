@@ -50,7 +50,8 @@ function mapSnapshot(
 
 const ADVISOR_SELECT = `id, full_name, email, title, phone, is_admin, is_superadmin, is_active,
                         auth_user_id, invited_at::text, bio, timezone, availability_notes,
-                        onboarding_completed_at::text, created_at::text`;
+                        onboarding_completed_at::text, notify_sessions, notify_documents,
+                        notify_messages, created_at::text`;
 
 export async function listAdvisorsWithStats(): Promise<AdvisorListRow[]> {
   const rows = await queryDb<
@@ -127,6 +128,9 @@ export type AdvisorUpdate = {
   onboarding_completed_at?: string | null;
   is_admin?: boolean;
   is_active?: boolean;
+  notify_sessions?: string;
+  notify_documents?: string;
+  notify_messages?: string;
 };
 
 // Built from the keys actually supplied so a caller can clear a title or phone,
@@ -146,6 +150,9 @@ export async function updateAdvisorFields(
     "onboarding_completed_at",
     "is_admin",
     "is_active",
+    "notify_sessions",
+    "notify_documents",
+    "notify_messages",
   ];
   const provided = columns.filter((c) => fields[c] !== undefined);
 
@@ -199,7 +206,37 @@ export async function setClientAdvisor(
      RETURNING ${CLIENT_SELECT}`,
     [clientId, advisorId],
   );
+  if (rows[0]) {
+    await queryDb(
+      `UPDATE wealth.message_threads SET advisor_id = $2, updated_at = now()
+       WHERE client_id = $1`,
+      [clientId, advisorId],
+    );
+    await queryDb(
+      `UPDATE wealth.document_requests SET advisor_id = $2, updated_at = now()
+       WHERE client_id = $1 AND status = 'pending'`,
+      [clientId, advisorId],
+    );
+    await queryDb(
+      `UPDATE wealth.session_requests SET advisor_id = $2
+       WHERE client_id = $1 AND status = 'pending'`,
+      [clientId, advisorId],
+    );
+  }
   return rows[0] ? mapClient(rows[0]) : null;
+}
+
+export async function bulkSetClientAdvisor(
+  clientIds: string[],
+  advisorId: string | null,
+): Promise<number> {
+  if (clientIds.length === 0) return 0;
+  let count = 0;
+  for (const clientId of clientIds) {
+    const updated = await setClientAdvisor(clientId, advisorId);
+    if (updated) count += 1;
+  }
+  return count;
 }
 
 /** Moves every client of one advisor to another, used when deactivating someone. */
@@ -507,22 +544,26 @@ export async function insertReport(row: {
   storagePath: string;
   fileSizeBytes: number;
   generatedBy?: string | null;
+  templateKey?: string | null;
+  sections?: string[] | null;
 }): Promise<WealthReport> {
-  // The reference is date based, so regenerating a statement on the same day
-  // replaces the earlier file instead of failing the unique constraint.
   const rows = await queryDb<WealthReport>(
     `INSERT INTO wealth.reports (
-      client_id, period_id, reference, title, storage_path, file_size_bytes, generated_by
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      client_id, period_id, reference, title, storage_path, file_size_bytes,
+      generated_by, template_key, sections
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
     ON CONFLICT (client_id, period_id, reference) DO UPDATE SET
       title = EXCLUDED.title,
       storage_path = EXCLUDED.storage_path,
       file_size_bytes = EXCLUDED.file_size_bytes,
       generated_by = EXCLUDED.generated_by,
+      template_key = EXCLUDED.template_key,
+      sections = EXCLUDED.sections,
       generated_at = now(),
       status = 'published'
     RETURNING id, client_id, period_id, reference, title,
-              generated_at::text, storage_path, file_size_bytes, status`,
+              generated_at::text, storage_path, file_size_bytes, status::text,
+              sections, template_key, sent_at::text`,
     [
       row.clientId,
       row.periodId,
@@ -531,6 +572,8 @@ export async function insertReport(row: {
       row.storagePath,
       row.fileSizeBytes,
       row.generatedBy ?? null,
+      row.templateKey ?? null,
+      row.sections ? JSON.stringify(row.sections) : null,
     ],
   );
   return rows[0];
@@ -809,6 +852,10 @@ export type ClientFieldsUpdate = Partial<
     | "financial_goals"
     | "date_of_birth"
     | "reference_code"
+    | "review_cadence"
+    | "next_review_date"
+    | "last_contact_date"
+    | "risk_assessed_at"
   >
 >;
 
@@ -831,6 +878,10 @@ const CLIENT_UPDATE_CASTS: Record<keyof ClientFieldsUpdate, string> = {
   financial_goals: "",
   date_of_birth: "::date",
   reference_code: "",
+  review_cadence: "::wealth.review_cadence",
+  next_review_date: "::date",
+  last_contact_date: "::date",
+  risk_assessed_at: "::date",
 };
 
 export async function updateClientFields(
@@ -869,17 +920,18 @@ export async function findAuthUserIdByEmail(email: string): Promise<string | nul
 const CLIENT_GOAL_SELECT = `
   id, client_id, name, category, icon_name,
   target_usd::float8, current_usd::float8, target_date::text, is_ongoing,
-  probability_pct::float8, status::text, advisor_note,
+  probability_pct::float8, status::text, advisor_note, linked_bucket::text,
   created_at::text, updated_at::text
 `;
 
-function mapClientGoal(row: ClientGoal & { status: string }): ClientGoal {
+function mapClientGoal(row: ClientGoal & { status: string; linked_bucket?: string | null }): ClientGoal {
   return {
     ...row,
     target_usd: Number(row.target_usd),
     current_usd: Number(row.current_usd),
     probability_pct: Number(row.probability_pct),
     status: row.status as GoalStatus,
+    linked_bucket: (row.linked_bucket as ClientGoal["linked_bucket"]) ?? null,
   };
 }
 
@@ -915,10 +967,10 @@ export async function insertClientGoal(
   const rows = await queryDb<ClientGoal & { status: string }>(
     `INSERT INTO wealth.client_goals (
        client_id, name, category, icon_name, target_usd, current_usd,
-       target_date, is_ongoing, probability_pct, status, advisor_note
+       target_date, is_ongoing, probability_pct, status, advisor_note, linked_bucket
      )
      VALUES (
-       $1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10::wealth.goal_status, $11
+       $1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10::wealth.goal_status, $11, $12::wealth.portfolio_bucket
      )
      RETURNING ${CLIENT_GOAL_SELECT}`,
     [
@@ -933,6 +985,7 @@ export async function insertClientGoal(
       input.probabilityPct,
       input.status,
       input.advisorNote,
+      input.linkedBucket ?? null,
     ],
   );
   return mapClientGoal(rows[0]!);
@@ -954,7 +1007,8 @@ export async function updateClientGoal(
          is_ongoing = $9,
          probability_pct = $10,
          status = $11::wealth.goal_status,
-         advisor_note = $12
+         advisor_note = $12,
+         linked_bucket = $13::wealth.portfolio_bucket
      WHERE client_id = $1 AND id = $2
      RETURNING ${CLIENT_GOAL_SELECT}`,
     [
@@ -970,6 +1024,7 @@ export async function updateClientGoal(
       input.probabilityPct,
       input.status,
       input.advisorNote,
+      input.linkedBucket ?? null,
     ],
   );
   return rows[0] ? mapClientGoal(rows[0]) : null;

@@ -5,6 +5,7 @@ import {
   getAdvisorById,
   getClientAddress,
   getClientById,
+  getClientGoals,
   getPortfolioSnapshots,
   getStatementPeriodsForClient,
   getTransactionsForClient,
@@ -30,12 +31,13 @@ export async function GET(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const [address, periods, portfolio, transactions, updates] = await Promise.all([
+  const [address, periods, portfolio, transactions, updates, goals] = await Promise.all([
     getClientAddress(id),
     getStatementPeriodsForClient(id),
     getJaPortfolioForClient(id),
     getTransactionsForClient(id),
     getUpdatesForClient(id),
+    getClientGoals(id),
   ]);
   const latestPeriod = periods[0] ?? null;
   const snapshots = latestPeriod
@@ -55,6 +57,7 @@ export async function GET(
     snapshots,
     transactions,
     updates,
+    goals,
   });
 }
 

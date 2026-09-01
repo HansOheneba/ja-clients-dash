@@ -35,13 +35,14 @@ export async function getAllReports(): Promise<(ReportDoc & { clientName: string
   const rows = await queryDb<WealthReport & { client_name: string }>(
     `SELECT r.id, r.client_id, r.period_id, r.reference, r.title,
             r.generated_at::text, r.storage_path, r.file_size_bytes, r.status,
-            c.full_name AS client_name
+            r.sent_at::text, c.full_name AS client_name
      FROM wealth.reports r
      JOIN wealth.clients c ON c.id = r.client_id
      ORDER BY r.generated_at DESC`,
   );
-  return rows.map((r: WealthReport & { client_name: string }) => ({
+  return rows.map((r: WealthReport & { client_name: string; sent_at?: string | null }) => ({
     ...toReportDoc(r),
     clientName: r.client_name,
+    sentAt: r.sent_at ?? null,
   }));
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ChevronRight, UserPlus, Users } from "lucide-react";
+import { FileText, UserPlus, Users } from "lucide-react";
 
+import { AttentionFeed } from "@/components/advisors/attention-feed";
 import { PageShell } from "@/components/layout/page-shell";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -13,7 +14,12 @@ import {
 import { KpiItem, KpiStrip } from "@/components/ui/kpi-strip";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { H1, Muted, TextSmall } from "@/components/ui/typography";
-import { listClientsWithPortfolio } from "@/lib/wealth/queries";
+import {
+  countSessionsThisWeek,
+  enforceReviewDueStatus,
+  getAttentionFeed,
+  listClientsExtended,
+} from "@/lib/wealth/wm-queries";
 import { requireAdvisor } from "@/lib/wealth/session";
 import { formatUsd } from "@/lib/wealth/constants";
 import { cn } from "@/lib/utils";
@@ -34,18 +40,28 @@ function initials(name: string) {
     .join("");
 }
 
+function formatReturn(pct: number | null) {
+  if (pct == null) return "N/A";
+  const sign = pct >= 0 ? "+" : "";
+  return `${sign}${pct.toFixed(1)}%`;
+}
+
 export default async function AdvisorDashboardPage() {
   const session = await requireAdvisor();
-  const clients = await listClientsWithPortfolio(null);
+  await enforceReviewDueStatus();
+
+  const advisorId = session.profile.advisor_id;
+  const [clients, attentionItems, sessionsThisWeek] = await Promise.all([
+    listClientsExtended(advisorId),
+    getAttentionFeed(advisorId),
+    countSessionsThisWeek(advisorId),
+  ]);
 
   const totalAum = clients.reduce((sum, c) => sum + c.aum, 0);
   const activeCount = clients.filter((c) => c.status === "active").length;
-  const reviewDue = clients.filter((c) => c.status === "review_due").length;
-  const onboarding = clients.filter((c) => c.status === "onboarding").length;
+  const needsAttention = attentionItems.length;
   const firstName = session.profile.full_name?.split(" ")[0] ?? "there";
-  const recentClients = [...clients]
-    .sort((a, b) => b.aum - a.aum)
-    .slice(0, 6);
+  const recentClients = [...clients].sort((a, b) => b.aum - a.aum).slice(0, 6);
 
   return (
     <PageShell className="flex flex-col gap-(--spacing-section)">
@@ -67,6 +83,13 @@ export default async function AdvisorDashboardPage() {
             <UserPlus className="size-4" />
             Add client
           </Link>
+          <Link
+            href="/advisors/dashboard/reports"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+          >
+            <FileText className="size-4" />
+            Generate report
+          </Link>
         </div>
       </header>
 
@@ -80,28 +103,33 @@ export default async function AdvisorDashboardPage() {
         <KpiItem
           label="Active clients"
           value={String(activeCount)}
-          change={`${onboarding} onboarding, ${reviewDue} review due`}
+          change={`${clients.length - activeCount} other statuses`}
           trend="up"
         />
         <KpiItem
-          label="Review due"
-          value={String(reviewDue)}
-          change="Requires attention"
-          trend={reviewDue > 0 ? "down" : "neutral"}
+          label="Needs attention"
+          value={String(needsAttention)}
+          change="Across your book"
+          trend={needsAttention > 0 ? "down" : "neutral"}
         />
         <KpiItem
-          label="Onboarding"
-          value={String(onboarding)}
-          change="New relationships"
+          label="Sessions this week"
+          value={String(sessionsThisWeek)}
+          change="Confirmed sessions"
           trend="neutral"
         />
       </KpiStrip>
 
+      <div>
+        <TextSmall className="mb-2 font-medium">Needs your attention</TextSmall>
+        <AttentionFeed items={attentionItems} />
+      </div>
+
       <DashCard>
         <DashCardHeader>
           <div>
-            <DashCardTitle>Clients by portfolio value</DashCardTitle>
-            <DashCardDescription>Latest statement values across your book</DashCardDescription>
+            <DashCardTitle>Your clients</DashCardTitle>
+            <DashCardDescription>Latest values and period returns</DashCardDescription>
           </div>
           <Link
             href="/advisors/dashboard/clients"
@@ -122,44 +150,44 @@ export default async function AdvisorDashboardPage() {
               </Link>
             </div>
           ) : (
-            recentClients.map((client) => (
-              <Link
-                key={client.id}
-                href={`/advisors/dashboard/clients/${client.id}`}
-                className="flex items-center gap-3 border-b border-border/60 px-6 py-4 transition-colors last:border-0 hover:bg-muted/40"
-              >
-                <Avatar size="sm">
-                  <AvatarFallback className="bg-muted text-xs font-medium">
-                    {initials(client.full_name)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 flex-1">
-                  <TextSmall className="font-medium">{client.full_name}</TextSmall>
-                  <Muted>
+            <>
+              <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 border-b border-border bg-muted/30 px-6 py-2 text-xs font-medium text-muted-foreground">
+                <span>Client</span>
+                <span>Value</span>
+                <span>Period return</span>
+                <span>Status</span>
+              </div>
+              {recentClients.map((client) => (
+                <Link
+                  key={client.id}
+                  href={`/advisors/dashboard/clients/${client.id}`}
+                  className="grid grid-cols-[2fr_1fr_1fr_1fr] items-center gap-2 border-b border-border/60 px-6 py-3 transition-colors last:border-0 hover:bg-muted/40"
+                >
+                  <span className="flex items-center gap-2">
+                    <Avatar size="sm">
+                      <AvatarFallback className="bg-muted text-xs font-medium">
+                        {initials(client.full_name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <TextSmall className="font-medium">{client.full_name}</TextSmall>
+                  </span>
+                  <TextSmall>{formatUsd(client.aum)}</TextSmall>
+                  <TextSmall
+                    className={
+                      client.period_return_pct != null && client.period_return_pct < 0
+                        ? "text-destructive"
+                        : "text-emerald-700"
+                    }
+                  >
+                    {formatReturn(client.period_return_pct)}
+                  </TextSmall>
+                  <TextSmall className="text-muted-foreground">
                     {STATUS_LABEL[client.status] ?? client.status}
-                    {client.location ? ` · ${client.location}` : ""}
-                  </Muted>
-                </div>
-                <TextSmall className="font-medium">{formatUsd(client.aum)}</TextSmall>
-                <ChevronRight className="size-4 text-muted-foreground" />
-              </Link>
-            ))
+                  </TextSmall>
+                </Link>
+              ))}
+            </>
           )}
-        </DashCardContent>
-      </DashCard>
-
-      <DashCard>
-        <DashCardHeader>
-          <DashCardTitle>Demo gallery</DashCardTitle>
-          <DashCardDescription>Sample screens with placeholder data</DashCardDescription>
-        </DashCardHeader>
-        <DashCardContent>
-          <Muted className="mb-4">
-            Tasks, sessions, book rollup charts, and Celerey demos live under the demo gallery.
-          </Muted>
-          <Link href="/advisors/dashboard/demo" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-            Open demo gallery
-          </Link>
         </DashCardContent>
       </DashCard>
     </PageShell>

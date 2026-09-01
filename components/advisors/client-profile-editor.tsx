@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
+import { AssignAdvisorControl } from "@/components/advisors/assign-advisor-control";
 import { Button } from "@/components/ui/button";
 import {
   DashCard,
@@ -65,7 +66,6 @@ export function ClientProfileEditor({
       dependents: Number(form.get("dependents") ?? 0),
       estateStatus: String(form.get("estateStatus") ?? "") || undefined,
       financialGoals: String(form.get("financialGoals") ?? "") || undefined,
-      advisorId: String(form.get("advisorId") ?? "") || null,
       address: {
         line1: String(form.get("line1") ?? "").trim(),
         line2: String(form.get("line2") ?? "").trim() || null,
@@ -96,8 +96,6 @@ export function ClientProfileEditor({
       setPending(false);
     }
   }
-
-  const activeAdvisors = advisors.filter((a) => a.is_active || a.id === client.advisor_id);
 
   return (
     <form onSubmit={onSubmit} className="flex max-w-3xl flex-col gap-6 pb-12">
@@ -309,24 +307,14 @@ export function ClientProfileEditor({
             </p>
           </FieldGroup>
           <FieldGroup>
-            <Label htmlFor="advisorId">Assigned wealth manager</Label>
-            <Select
-              id="advisorId"
-              name="advisorId"
-              defaultValue={client.advisor_id ?? ""}
-            >
-              <option value="">Unassigned</option>
-              {client.advisor_id &&
-              !activeAdvisors.some((advisor) => advisor.id === client.advisor_id) ? (
-                <option value={client.advisor_id}>Current advisor</option>
-              ) : null}
-              {activeAdvisors.map((advisor) => (
-                <option key={advisor.id} value={advisor.id}>
-                  {advisor.full_name}
-                  {advisor.is_active ? "" : " (inactive)"}
-                </option>
-              ))}
-            </Select>
+            <Label>Wealth manager</Label>
+            <AssignAdvisorControl
+              clientId={client.id}
+              advisorId={client.advisor_id}
+              advisors={advisors}
+              variant="default"
+              onAssigned={onSaved}
+            />
           </FieldGroup>
         </DashCardContent>
       </DashCard>

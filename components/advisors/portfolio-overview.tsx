@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Pencil } from "lucide-react";
 
+import { DesignedEmptyState } from "@/components/advisors/designed-empty-state";
 import { AllocationPieChart, AssetAreaChart } from "@/components/charts/asset-charts";
-import { Button } from "@/components/ui/button";
+import { PortfolioQuickUpdate } from "@/components/advisors/portfolio-quick-update";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   DashCard,
   DashCardContent,
@@ -15,8 +18,9 @@ import {
 import { KpiItem, KpiStrip } from "@/components/ui/kpi-strip";
 import { Muted, TextSmall } from "@/components/ui/typography";
 import { BUCKET_COLORS, BUCKET_LABELS, formatUsd } from "@/lib/wealth/constants";
+import { cn } from "@/lib/utils";
 import type { JaPortfolioSummary } from "@/lib/api/domain/wealth-portfolio";
-import type { PortfolioSnapshot, StatementPeriod } from "@/lib/wealth/types";
+import type { PortfolioSnapshot, StatementPeriod, WealthTransaction } from "@/lib/wealth/types";
 
 function formatStatementDate(value: string) {
   return new Date(`${value}T12:00:00`).toLocaleDateString("en-GB", {
@@ -31,13 +35,23 @@ export function PortfolioOverview({
   portfolio,
   snapshots,
   latestPeriod,
+  onRefresh,
 }: {
   clientId: string;
   portfolio: JaPortfolioSummary | null;
   snapshots: PortfolioSnapshot[];
   latestPeriod: StatementPeriod | null;
+  onRefresh?: () => void;
 }) {
   const statementHref = `/advisors/dashboard/clients/${clientId}/statement`;
+  const [transactions, setTransactions] = useState<WealthTransaction[]>([]);
+
+  useEffect(() => {
+    fetch(`/api/clients/${clientId}/transactions`)
+      .then((res) => res.json())
+      .then((data) => setTransactions(data.transactions ?? []))
+      .catch(() => undefined);
+  }, [clientId]);
 
   const slices = (portfolio?.buckets ?? []).map((b) => ({
     name: b.label,
@@ -141,7 +155,16 @@ export function PortfolioOverview({
             {slices.length > 0 ? (
               <AllocationPieChart data={slices} />
             ) : (
-              <Muted>Save statement data to see allocation.</Muted>
+              <DesignedEmptyState
+                variant="allocation"
+                title="No portfolio data yet"
+                description="Add statement data to see how this client's portfolio is allocated."
+                action={
+                  <Link href={statementHref} className={cn(buttonVariants({ size: "sm" }))}>
+                    Add statement data
+                  </Link>
+                }
+              />
             )}
           </DashCardContent>
         </DashCard>
@@ -163,7 +186,19 @@ export function PortfolioOverview({
                 seriesLabel="Portfolio value"
               />
             ) : (
-              <Muted>Save statement data to build the value chart.</Muted>
+              <DesignedEmptyState
+                variant="trend"
+                title="No portfolio history yet"
+                description="Portfolio trends will appear here once statement periods have been added."
+                action={
+                  <Link
+                    href={statementHref}
+                    className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                  >
+                    Add statement
+                  </Link>
+                }
+              />
             )}
           </DashCardContent>
         </DashCard>
@@ -216,6 +251,46 @@ export function PortfolioOverview({
                 ))}
               </tbody>
             </table>
+          </DashCardContent>
+        </DashCard>
+      ) : null}
+
+      <PortfolioQuickUpdate
+        clientId={clientId}
+        snapshots={snapshots}
+        onSaved={onRefresh}
+      />
+
+      {transactions.length > 0 ? (
+        <DashCard>
+          <DashCardHeader>
+            <div>
+              <DashCardTitle>Contributions and withdrawals</DashCardTitle>
+              <DashCardDescription>Recent cash movements</DashCardDescription>
+            </div>
+            <Link href={statementHref}>
+              <Button variant="outline" size="sm">
+                Edit in statement data
+              </Button>
+            </Link>
+          </DashCardHeader>
+          <DashCardContent className="gap-2">
+            {transactions.slice(0, 8).map((tx) => (
+              <div
+                key={tx.id}
+                className="flex items-center justify-between border-b border-border/50 py-2 last:border-0"
+              >
+                <div>
+                  <TextSmall className="font-medium">{tx.description}</TextSmall>
+                  <Muted className="text-xs">
+                    {new Date(`${tx.occurred_on}T12:00:00`).toLocaleDateString("en-GB")}
+                  </Muted>
+                </div>
+                <TextSmall className={tx.amount_usd >= 0 ? "text-emerald-700" : "text-destructive"}>
+                  {formatUsd(tx.amount_usd)}
+                </TextSmall>
+              </div>
+            ))}
           </DashCardContent>
         </DashCard>
       ) : null}

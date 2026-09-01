@@ -129,6 +129,7 @@ export function AddClientForm({
       dependents: Number(form.get("dependents") ?? 0),
       estateStatus: String(form.get("estateStatus") ?? "") || undefined,
       advisorId: String(form.get("advisorId") ?? "") || undefined,
+      reviewCadence: String(form.get("reviewCadence") ?? "") || undefined,
       advisorNotes: String(form.get("advisorNotes") ?? "") || undefined,
       sendInvite: true,
       address: {
@@ -307,6 +308,14 @@ export function AddClientForm({
                 <option>3-7 years (Medium term)</option>
                 <option>7-15 years (Long term)</option>
                 <option>15+ years (Generational)</option>
+              </Select>
+            </FieldGroup>
+            <FieldGroup>
+              <FieldLabel htmlFor="reviewCadence">Review cadence</FieldLabel>
+              <Select id="reviewCadence" name="reviewCadence" defaultValue="quarterly">
+                <option value="quarterly">Quarterly</option>
+                <option value="semi_annual">Semi-annual</option>
+                <option value="annual">Annual</option>
               </Select>
             </FieldGroup>
           </FormRow>

@@ -75,6 +75,9 @@ export async function PATCH(request: Request) {
     bio: bio ?? undefined,
     timezone: timezone ?? undefined,
     availability_notes: availabilityNotes ?? undefined,
+    notify_sessions: body.notifySessions ? String(body.notifySessions) : undefined,
+    notify_documents: body.notifyDocuments ? String(body.notifyDocuments) : undefined,
+    notify_messages: body.notifyMessages ? String(body.notifyMessages) : undefined,
     title: body.completeOnboarding ? "Wealth Manager" : undefined,
     onboarding_completed_at: body.completeOnboarding ? new Date().toISOString() : undefined,
   });

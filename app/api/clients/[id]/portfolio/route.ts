@@ -9,6 +9,7 @@ import {
   upsertHistoryPoint,
   upsertSnapshots,
 } from "@/lib/wealth/queries";
+import { insertAuditLog, syncGoalsFromPortfolio } from "@/lib/wealth/wm-queries";
 import { ALL_BUCKETS } from "@/lib/wealth/constants";
 import { canAccessClient, getAdvisorApiSession, getApiSession } from "@/lib/wealth/session";
 import type { PortfolioBucket } from "@/lib/wealth/types";
@@ -58,6 +59,11 @@ export async function PUT(
     return NextResponse.json({ error: "No statement period" }, { status: 400 });
   }
 
+  const previousSnapshots = await getPortfolioSnapshots(id, period.id);
+  const previousByBucket = Object.fromEntries(
+    previousSnapshots.map((s) => [s.bucket, s.current_value_usd]),
+  ) as Partial<Record<PortfolioBucket, number>>;
+
   const incoming = (body.snapshots ?? []) as Array<{
     bucket: PortfolioBucket;
     previous_value_usd: number;
@@ -97,6 +103,24 @@ export async function PUT(
   await upsertSnapshots(id, period.id, rows);
   const total = rows.reduce((sum, r) => sum + r.current_value_usd, 0);
   await upsertHistoryPoint(id, period.period_end, total);
+
+  const bucketValues = Object.fromEntries(
+    rows.map((r) => [r.bucket, r.current_value_usd]),
+  ) as Partial<Record<PortfolioBucket, number>>;
+  await syncGoalsFromPortfolio(id, bucketValues);
+
+  const auditNote = body.auditNote ? String(body.auditNote) : null;
+  if (auditNote || body.quickUpdate) {
+    await insertAuditLog({
+      actorId: session.userId,
+      action: "portfolio_update",
+      targetType: "client",
+      targetId: id,
+      beforeValue: { buckets: previousByBucket },
+      afterValue: { buckets: bucketValues },
+      note: auditNote,
+    });
+  }
 
   await notifyClient({
     clientId: id,

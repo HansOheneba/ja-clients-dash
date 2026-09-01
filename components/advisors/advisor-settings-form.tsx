@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dash-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Muted } from "@/components/ui/typography";
 import {
   defaultWeeklyAvailability,
@@ -29,11 +30,17 @@ export function AdvisorSettingsForm({
   email,
   timezone,
   availabilityNotes,
+  notifySessions = "instant",
+  notifyDocuments = "instant",
+  notifyMessages = "instant",
 }: {
   fullName: string;
   email: string;
   timezone?: string | null;
   availabilityNotes?: string | null;
+  notifySessions?: string;
+  notifyDocuments?: string;
+  notifyMessages?: string;
 }) {
   const router = useRouter();
   const [name, setName] = useState(fullName);
@@ -41,6 +48,9 @@ export function AdvisorSettingsForm({
     () => parseAvailabilityNotes(availabilityNotes) ?? defaultWeeklyAvailability(),
   );
   const [tz, setTz] = useState(() => normalizeTimezoneValue(timezone));
+  const [notifySess, setNotifySess] = useState(notifySessions);
+  const [notifyDocs, setNotifyDocs] = useState(notifyDocuments);
+  const [notifyMsgs, setNotifyMsgs] = useState(notifyMessages);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,13 +61,19 @@ export function AdvisorSettingsForm({
       parseAvailabilityNotes(availabilityNotes) ?? defaultWeeklyAvailability(),
     ),
     hadSchedule: Boolean(parseAvailabilityNotes(availabilityNotes)),
+    notifySess: notifySessions,
+    notifyDocs: notifyDocuments,
+    notifyMsgs: notifyMessages,
   }));
 
   const dirty =
     name.trim() !== baseline.name ||
     tz !== baseline.tz ||
     serializeAvailability(availability) !== baseline.schedule ||
-    !baseline.hadSchedule;
+    !baseline.hadSchedule ||
+    notifySess !== baseline.notifySess ||
+    notifyDocs !== baseline.notifyDocs ||
+    notifyMsgs !== baseline.notifyMsgs;
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -88,6 +104,9 @@ export function AdvisorSettingsForm({
           fullName: nextName,
           timezone: tz,
           availabilityNotes: nextSchedule,
+          notifySessions: notifySess,
+          notifyDocuments: notifyDocs,
+          notifyMessages: notifyMsgs,
         }),
       });
       const body = await res.json();
@@ -97,6 +116,9 @@ export function AdvisorSettingsForm({
         tz,
         schedule: nextSchedule,
         hadSchedule: true,
+        notifySess,
+        notifyDocs,
+        notifyMsgs,
       });
       setMessage("Settings saved.");
       router.refresh();
@@ -147,6 +169,38 @@ export function AdvisorSettingsForm({
           onTimezoneChange={setTz}
         />
       </div>
+
+      <DashCard>
+        <DashCardHeader>
+          <DashCardTitle>Notifications</DashCardTitle>
+          <DashCardDescription>
+            Choose instant alerts or daily digest for key workflow events.
+          </DashCardDescription>
+        </DashCardHeader>
+        <DashCardContent className="grid gap-3 sm:grid-cols-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="notify-sessions">Sessions</Label>
+            <Select id="notify-sessions" value={notifySess} onChange={(e) => setNotifySess(e.target.value)}>
+              <option value="instant">Instant</option>
+              <option value="digest">Daily digest</option>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="notify-docs">Documents</Label>
+            <Select id="notify-docs" value={notifyDocs} onChange={(e) => setNotifyDocs(e.target.value)}>
+              <option value="instant">Instant</option>
+              <option value="digest">Daily digest</option>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="notify-msgs">Messages</Label>
+            <Select id="notify-msgs" value={notifyMsgs} onChange={(e) => setNotifyMsgs(e.target.value)}>
+              <option value="instant">Instant</option>
+              <option value="digest">Daily digest</option>
+            </Select>
+          </div>
+        </DashCardContent>
+      </DashCard>
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={saving || !dirty}>

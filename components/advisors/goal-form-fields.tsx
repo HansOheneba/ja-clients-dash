@@ -10,7 +10,8 @@ import {
   GOAL_STATUSES,
   monthFromIsoDate,
 } from "@/lib/wealth/goals";
-import type { ClientGoal, GoalStatus } from "@/lib/wealth/types";
+import type { ClientGoal, GoalStatus, PortfolioBucket } from "@/lib/wealth/types";
+import { ALL_BUCKETS, BUCKET_LABELS } from "@/lib/wealth/constants";
 
 export type GoalFormState = {
   category: string;
@@ -22,6 +23,7 @@ export type GoalFormState = {
   probabilityPct: string;
   status: GoalStatus;
   advisorNote: string;
+  linkedBucket: string;
 };
 
 export const EMPTY_GOAL_FORM: GoalFormState = {
@@ -34,6 +36,7 @@ export const EMPTY_GOAL_FORM: GoalFormState = {
   probabilityPct: "",
   status: "in-progress",
   advisorNote: "",
+  linkedBucket: "",
 };
 
 export function goalFormToPayload(values: GoalFormState) {
@@ -47,6 +50,7 @@ export function goalFormToPayload(values: GoalFormState) {
     probabilityPct: values.probabilityPct,
     status: values.status,
     advisorNote: values.advisorNote,
+    linkedBucket: values.linkedBucket || null,
   };
 }
 
@@ -61,6 +65,7 @@ export function goalFormFromClientGoal(goal: ClientGoal): GoalFormState {
     probabilityPct: String(goal.probability_pct),
     status: goal.status,
     advisorNote: goal.advisor_note,
+    linkedBucket: goal.linked_bucket ?? "",
   };
 }
 
@@ -186,6 +191,25 @@ function GoalFormFields({ idPrefix, values, onChange }: GoalFormFieldsProps) {
             ))}
           </Select>
         </div>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={`${idPrefix}-bucket`}>Linked asset class</Label>
+        <Select
+          id={`${idPrefix}-bucket`}
+          value={values.linkedBucket}
+          onChange={(event) => patch({ linkedBucket: event.target.value })}
+        >
+          <option value="">None (manual progress)</option>
+          {ALL_BUCKETS.map((bucket) => (
+            <option key={bucket} value={bucket}>
+              {BUCKET_LABELS[bucket]}
+            </option>
+          ))}
+        </Select>
+        <Muted className="text-xs">
+          When set, current amount syncs from portfolio bucket values on save.
+        </Muted>
       </div>
 
       <div className="flex flex-col gap-1.5">

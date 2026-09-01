@@ -23,6 +23,9 @@ export default async function AdvisorSettingsPage() {
           email={session.email}
           timezone={advisor.timezone}
           availabilityNotes={advisor.availability_notes}
+          notifySessions={advisor.notify_sessions}
+          notifyDocuments={advisor.notify_documents}
+          notifyMessages={advisor.notify_messages}
         />
       ) : (
         <Muted>No wealth manager profile is linked to this account yet.</Muted>

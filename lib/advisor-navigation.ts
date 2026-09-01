@@ -1,9 +1,11 @@
 import {
-  Building2,
+  Calendar,
   FileText,
   LayoutDashboard,
-  Sparkles,
+  Mail,
   Users,
+  Building2,
+  FolderOpen,
 } from "lucide-react";
 
 import { appConfig } from "@/lib/app-config";
@@ -12,12 +14,10 @@ import type { NavItem } from "@/lib/navigation";
 const advisorNavItems: NavItem[] = [
   { label: "Overview", href: appConfig.routes.advisor.dashboard, icon: LayoutDashboard },
   { label: "Clients", href: `${appConfig.routes.advisor.clients}`, icon: Users },
+  { label: "Sessions", href: `${appConfig.routes.advisor.dashboard}/sessions`, icon: Calendar },
   { label: "Reports", href: `${appConfig.routes.advisor.dashboard}/reports`, icon: FileText },
-  {
-    label: "Demo gallery",
-    href: `${appConfig.routes.advisor.dashboard}/demo`,
-    icon: Sparkles,
-  },
+  { label: "Documents", href: `${appConfig.routes.advisor.dashboard}/documents`, icon: FolderOpen },
+  { label: "Messages", href: `${appConfig.routes.advisor.dashboard}/messages`, icon: Mail },
 ];
 
 const teamNavItem: NavItem = {
@@ -26,11 +26,10 @@ const teamNavItem: NavItem = {
   icon: Building2,
 };
 
-/** Every wealth manager can manage the shared team and client book. */
 function advisorNavItemsForRole(_role: string): NavItem[] {
   const items = [...advisorNavItems];
-  const reportsIndex = items.findIndex((item) => item.label === "Reports");
-  const insertAt = reportsIndex === -1 ? items.length : reportsIndex + 1;
+  const messagesIndex = items.findIndex((item) => item.label === "Messages");
+  const insertAt = messagesIndex === -1 ? items.length : messagesIndex + 1;
   items.splice(insertAt, 0, teamNavItem);
   return items;
 }

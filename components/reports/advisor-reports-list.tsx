@@ -23,6 +23,7 @@ type ReportDoc = {
   sizeKb: number;
   downloadUrl: string;
   clientName?: string;
+  sentAt?: string | null;
 };
 
 export function AdvisorReportsList({ clientId }: { clientId?: string }) {
@@ -85,9 +86,23 @@ export function AdvisorReportsList({ clientId }: { clientId?: string }) {
                 <Muted>
                   {doc.clientName ? `${doc.clientName} · ` : ""}
                   {doc.date}
+                  {doc.sentAt ? ` · Sent ${new Date(doc.sentAt).toLocaleDateString("en-GB")}` : ""}
                 </Muted>
               </div>
               <Badge variant="outline">PDF</Badge>
+              {!doc.sentAt ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs"
+                  onClick={async () => {
+                    await fetch(`/api/reports/${doc.id}/send`, { method: "POST" });
+                    load();
+                  }}
+                >
+                  Mark sent
+                </Button>
+              ) : null}
               <a
                 href={doc.downloadUrl}
                 download

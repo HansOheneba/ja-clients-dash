@@ -1,7 +1,26 @@
 import { NextResponse } from "next/server";
 
-import { getClientById, insertClientUpdate, insertSessionRequest } from "@/lib/wealth/queries";
-import { getApiSession } from "@/lib/wealth/session";
+import {
+  getClientById,
+  insertClientUpdate,
+  insertSessionRequest,
+} from "@/lib/wealth/queries";
+import {
+  insertSession,
+  listSessionRequests,
+  updateSessionRequest,
+} from "@/lib/wealth/wm-queries";
+import { getAdvisorApiSession, getApiSession } from "@/lib/wealth/session";
+
+export async function GET(request: Request) {
+  const session = await getAdvisorApiSession();
+  if (!session.ok) return session.response;
+
+  const { searchParams } = new URL(request.url);
+  const clientId = searchParams.get("clientId");
+  const requests = await listSessionRequests(session.profile.advisor_id, clientId);
+  return NextResponse.json({ requests });
+}
 
 export async function POST(request: Request) {
   const session = await getApiSession();
@@ -45,4 +64,65 @@ export async function POST(request: Request) {
   });
 
   return NextResponse.json({ id: row.id });
+}
+
+export async function PATCH(request: Request) {
+  const session = await getAdvisorApiSession();
+  if (!session.ok) return session.response;
+
+  const body = await request.json().catch(() => ({}));
+  const id = String(body.id ?? "");
+  const action = String(body.action ?? "");
+
+  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+  if (action === "accept") {
+    const scheduledAt = String(body.scheduledAt ?? "");
+    if (!scheduledAt) {
+      return NextResponse.json({ error: "scheduledAt required" }, { status: 400 });
+    }
+    const existing = (await listSessionRequests(session.profile.advisor_id)).find(
+      (r) => r.id === id,
+    );
+    if (!existing) {
+      return NextResponse.json({ error: "Request not found" }, { status: 404 });
+    }
+    const client = await getClientById(existing.client_id);
+    const advisorId = client?.advisor_id ?? session.profile.advisor_id;
+    if (!advisorId) {
+      return NextResponse.json({ error: "No advisor" }, { status: 400 });
+    }
+    const wmSession = await insertSession({
+      clientId: existing.client_id,
+      advisorId,
+      sessionRequestId: id,
+      title: existing.topic,
+      scheduledAt,
+    });
+    const updated = await updateSessionRequest(id, {
+      status: "accepted",
+      sessionId: wmSession.id,
+      responseNote: body.note ? String(body.note) : undefined,
+    });
+    return NextResponse.json({ request: updated, session: wmSession });
+  }
+
+  if (action === "decline") {
+    const updated = await updateSessionRequest(id, {
+      status: "declined",
+      responseNote: body.note ? String(body.note) : undefined,
+    });
+    return NextResponse.json({ request: updated });
+  }
+
+  if (action === "reschedule") {
+    const updated = await updateSessionRequest(id, {
+      status: "rescheduled",
+      proposedTimes: String(body.proposedTimes ?? ""),
+      responseNote: body.note ? String(body.note) : undefined,
+    });
+    return NextResponse.json({ request: updated });
+  }
+
+  return NextResponse.json({ error: "Unknown action" }, { status: 400 });
 }

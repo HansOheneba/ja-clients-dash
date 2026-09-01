@@ -14,6 +14,7 @@ import {
   upsertHistoryPoint,
   upsertSnapshots,
 } from "@/lib/wealth/queries";
+import { CLIENT_SELECT } from "@/lib/wealth/types";
 import { ALL_BUCKETS } from "@/lib/wealth/constants";
 import { calendarMonthBounds } from "@/lib/wealth/period-calendar";
 import { clientNumberFromId, isUniqueViolation } from "@/lib/wealth/references";
@@ -22,9 +23,11 @@ import type {
   ClientAddress,
   ClientStatus,
   PortfolioBucket,
+  ReviewCadence,
   UpdateKind,
   WealthClient,
 } from "@/lib/wealth/types";
+import { computeNextReviewDate } from "@/lib/wealth/wm-queries";
 
 export function appOrigin() {
   return (
@@ -55,6 +58,7 @@ export type CreateClientInput = {
   sendInvite?: boolean;
   createdBy?: string | null;
   advisorId?: string | null;
+  reviewCadence?: ReviewCadence | null;
 };
 
 export async function createWealthClient(input: CreateClientInput) {
@@ -65,6 +69,9 @@ export async function createWealthClient(input: CreateClientInput) {
   }
 
   let client: WealthClient | undefined;
+  const nextReviewDate = input.reviewCadence
+    ? computeNextReviewDate(input.reviewCadence)
+    : null;
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const id = randomUUID();
     const clientNumber = clientNumberFromId(id);
@@ -74,16 +81,14 @@ export async function createWealthClient(input: CreateClientInput) {
           id, client_number, full_name, email, phone, currency, inception_date,
           advisor_id, status, risk_profile, investment_horizon, primary_objective,
           advisor_notes, date_of_birth, marital_status, dependents, estate_status,
-          financial_goals, reference_code
+          financial_goals, reference_code, review_cadence, next_review_date, risk_assessed_at
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7::date, $8, $9::wealth.client_status, $10, $11, $12,
-          $13, $14::date, $15, COALESCE($16::integer, 0), $17, $18, $2
+          $13, $14::date, $15, COALESCE($16::integer, 0), $17, $18, $2,
+          $19::wealth.review_cadence, $20::date,
+          CASE WHEN $10 IS NOT NULL THEN CURRENT_DATE ELSE NULL END
         )
-        RETURNING id, client_number, reference_code, full_name, email, phone, currency,
-                  inception_date::text, advisor_id, status::text, risk_profile,
-                  investment_horizon, primary_objective, marital_status, dependents,
-                  estate_status, financial_goals, advisor_notes, date_of_birth::text,
-                  auth_user_id, invited_at::text, last_login_at::text, created_at::text`,
+        RETURNING ${CLIENT_SELECT}`,
         [
           id,
           clientNumber,
@@ -103,6 +108,8 @@ export async function createWealthClient(input: CreateClientInput) {
           input.dependents ?? 0,
           input.estateStatus || null,
           input.financialGoals || null,
+          input.reviewCadence ?? null,
+          nextReviewDate,
         ],
       );
       client = rows[0];

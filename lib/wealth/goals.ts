@@ -1,5 +1,5 @@
 import type { Goal } from "@/lib/data/goals";
-import type { ClientGoal, GoalStatus } from "@/lib/wealth/types";
+import type { ClientGoal, GoalStatus, PortfolioBucket } from "@/lib/wealth/types";
 
 export const GOAL_CATEGORIES = [
   { label: "Retirement Planning", iconName: "Landmark" },
@@ -31,6 +31,7 @@ export type GoalWriteInput = {
   status: GoalStatus;
   advisorNote: string;
   iconName: string;
+  linkedBucket?: PortfolioBucket | null;
 };
 
 export function iconForCategory(category: string): string {
@@ -130,6 +131,10 @@ export function parseGoalWrite(
       status,
       advisorNote,
       iconName: iconForCategory(category),
+      linkedBucket:
+        typeof body.linkedBucket === "string" && body.linkedBucket
+          ? (body.linkedBucket as PortfolioBucket)
+          : null,
     },
   };
 }

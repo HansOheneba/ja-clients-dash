@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createWealthClient } from "@/lib/wealth/client-service";
 import { listClientsWithPortfolio } from "@/lib/wealth/queries";
 import { getAdvisorApiSession } from "@/lib/wealth/session";
-import type { PortfolioBucket } from "@/lib/wealth/types";
+import type { PortfolioBucket, ReviewCadence } from "@/lib/wealth/types";
 
 export async function GET() {
   const session = await getAdvisorApiSession();
@@ -59,6 +59,9 @@ export async function POST(request: Request) {
       advisorId: body.advisorId
           ? String(body.advisorId)
           : session.profile.advisor_id,
+      reviewCadence: body.reviewCadence
+        ? (String(body.reviewCadence) as ReviewCadence)
+        : undefined,
     });
 
     return NextResponse.json({
