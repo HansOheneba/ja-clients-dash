@@ -6,6 +6,10 @@ import { SessionDateTimePicker } from "@/components/sessions/session-datetime-pi
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatSessionFormat } from "@/lib/sessions/format";
+import {
+  awaitingParty,
+  proposalDateTimeLabel,
+} from "@/lib/sessions/proposal-utils";
 import type { SessionParty, SessionRequest } from "@/lib/wealth/wm-types";
 import { Muted, TextSmall } from "@/components/ui/typography";
 

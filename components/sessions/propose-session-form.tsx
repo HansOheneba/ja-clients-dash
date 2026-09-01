@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Muted } from "@/components/ui/typography";
 import { SESSION_FORMAT_OPTIONS } from "@/lib/sessions/format";
 
 export function ProposeSessionForm({
