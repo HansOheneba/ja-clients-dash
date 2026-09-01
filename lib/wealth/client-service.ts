@@ -1,11 +1,14 @@
 import { queryDb } from "@/lib/supabase/db";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { asOfMonthDay, shortPeriodLabel } from "@/lib/email/helpers";
 import {
   sendClientUpdateEmail,
   sendPortalInviteEmail,
+  sendReportReadyEmail,
 } from "@/lib/email/resend";
 import {
   findAuthUserIdByEmail,
+  getAdvisorById,
   getClientByEmail,
   getClientById,
   insertClientUpdate,
@@ -239,6 +242,12 @@ export async function inviteClientToPortal(clientId: string, createdBy?: string 
   return { authUserId };
 }
 
+export type ReportEmailMeta = {
+  kindTitle: string;
+  periodLabel: string;
+  asOfDate: string;
+};
+
 export async function notifyClient(params: {
   clientId: string;
   kind: UpdateKind;
@@ -246,6 +255,7 @@ export async function notifyClient(params: {
   body: string;
   createdBy?: string | null;
   email?: boolean;
+  report?: ReportEmailMeta;
 }) {
   await insertClientUpdate({
     clientId: params.clientId,
@@ -269,13 +279,35 @@ export async function notifyClient(params: {
   );
   if (profileRows[0] && !profileRows[0].email_notifications) return;
 
+  const origin = appOrigin();
+  const portalUrl = `${origin}/clients/dashboard`;
+
   try {
+    if (params.kind === "report" && params.report) {
+      const advisor = client.advisor_id
+        ? await getAdvisorById(client.advisor_id)
+        : null;
+      await sendReportReadyEmail({
+        to: client.email,
+        clientName: client.full_name,
+        clientNumber: client.client_number,
+        periodLabel: shortPeriodLabel(params.report.periodLabel),
+        kindTitle: params.report.kindTitle,
+        asOfLabel: asOfMonthDay(params.report.asOfDate),
+        reportUrl: `${origin}/clients/dashboard/documents`,
+        portalUrl,
+        advisorEmail: advisor?.email ?? null,
+        advisorName: advisor?.full_name ?? null,
+      });
+      return;
+    }
+
     await sendClientUpdateEmail({
       to: client.email,
       clientName: client.full_name,
       title: params.title,
       body: params.body,
-      loginUrl: `${appOrigin()}/clients/dashboard`,
+      loginUrl: portalUrl,
     });
   } catch {
     /* email is best-effort; the in-portal update still lands */

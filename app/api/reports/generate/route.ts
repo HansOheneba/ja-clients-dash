@@ -44,7 +44,12 @@ export async function POST(request: Request) {
     }
 
     const kind = isReportKind(body.kind) ? body.kind : "monthly";
-    const { report } = await createAndStoreReport(clientId, periodId, user.id, kind);
+    const { report, data } = await createAndStoreReport(
+      clientId,
+      periodId,
+      user.id,
+      kind,
+    );
 
     await notifyClient({
       clientId,
@@ -53,6 +58,11 @@ export async function POST(request: Request) {
       body: `${report.title} is ready to download in your documents vault.`,
       createdBy: user.id,
       email: true,
+      report: {
+        kindTitle: data.reportKindTitle,
+        periodLabel: data.statementPeriodLabel,
+        asOfDate: data.periodEnd,
+      },
     });
 
     return NextResponse.json({

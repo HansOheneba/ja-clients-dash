@@ -53,7 +53,7 @@ export async function POST(request: Request) {
         results.push({ clientId, ok: false, error: "No statement period" });
         continue;
       }
-      const { report } = await createAndStoreReport(
+      const { report, data } = await createAndStoreReport(
         clientId,
         period.id,
         session.userId,
@@ -67,6 +67,11 @@ export async function POST(request: Request) {
         body: `${report.title} is ready to download in your documents vault.`,
         createdBy: session.userId,
         email: true,
+        report: {
+          kindTitle: data.reportKindTitle,
+          periodLabel: data.statementPeriodLabel,
+          asOfDate: data.periodEnd,
+        },
       });
       results.push({ clientId, ok: true, reportId: report.id });
     } catch (err) {
