@@ -53,20 +53,18 @@ const clients: AdvisorClient[] = [
     lastContact: "Today",
     onboardedDate: "Jan 2018",
     portfolio: {
-      total: 2780521,
-      ytd: 8.1,
-      inceptionValue: 1600000,
+      total: 285413,
+      ytd: 14.5,
+      inceptionValue: 250000,
       assets: [
-        { name: "Income Portfolio",  value: 642000,  allocation: 23, ytd: "+8.1%",  color: "#b2936b" },
-        { name: "Growth Portfolio",  value: 498000,  allocation: 18, ytd: "+13.2%", color: "#202356" },
-        { name: "Venture Portfolio", value: 1605000, allocation: 58, ytd: "+9.8%",  color: "#829850" },
-        { name: "Cash On Account",   value: 259521,  allocation: 9,  ytd: "N/A",    color: "#c4b5a0" },
+        { name: "Growth Portfolio", value: 280413, allocation: 98, ytd: "+14.5%", color: "#202356" },
+        { name: "Cash On Account", value: 5000, allocation: 2, ytd: "N/A", color: "#c4b5a0" },
       ],
       history: [
-        2200000, 2280000, 2401521, 2480000, 2550000, 2581521,
-        2595000, 2608000, 2615521, 2622000, 2638000, 2648521,
-        2659000, 2672000, 2681521, 2694000, 2706000, 2714521,
-        2728000, 2739000, 2747521, 2756000, 2768000, 2780521,
+        5000, 5000, 5000, 5000, 5000, 5000,
+        5000, 5000, 5000, 5000, 5000, 5000,
+        5000, 5000, 5000, 5000, 5000, 5000,
+        5000, 255000, 250000, 260000, 272000, 285413,
       ].map((v, i) => ({
         month: months[i % months.length],
         value: v,
@@ -80,7 +78,7 @@ const clients: AdvisorClient[] = [
       { title: "Q2 2026 wealth report generated", date: "15 Jul 2026", type: "document" },
       { title: "Statement data updated for Q2 2026", date: "1 Jul 2026", type: "note" },
     ],
-    notes: "Sample wealth client with quarterly statement data through Q2 2026. Use Statement data to edit figures or Reports to generate PDFs.",
+    notes: "Sample wealth client aligned with the JA Wealth reference report (June 2026). Growth portfolio includes individual holdings (CELH, QQQM, PLTR, etc.).",
   },
   {
     id: "lois-lane",

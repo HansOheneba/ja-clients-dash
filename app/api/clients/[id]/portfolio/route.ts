@@ -4,6 +4,7 @@ import { notifyClient } from "@/lib/wealth/client-service";
 import {
   getClientById,
   getLatestPeriodForClient,
+  getPortfolioHoldings,
   getPortfolioSnapshots,
   getStatementPeriod,
   upsertHistoryPoint,
@@ -33,10 +34,13 @@ export async function GET(
   const period = periodId
     ? await getStatementPeriod(periodId)
     : await getLatestPeriodForClient(id);
-  if (!period) return NextResponse.json({ snapshots: [], period: null });
+  if (!period) return NextResponse.json({ snapshots: [], holdings: [], period: null });
 
-  const snapshots = await getPortfolioSnapshots(id, period.id);
-  return NextResponse.json({ period, snapshots });
+  const [snapshots, holdings] = await Promise.all([
+    getPortfolioSnapshots(id, period.id),
+    getPortfolioHoldings(id, period.id),
+  ]);
+  return NextResponse.json({ period, snapshots, holdings });
 }
 
 export async function PUT(

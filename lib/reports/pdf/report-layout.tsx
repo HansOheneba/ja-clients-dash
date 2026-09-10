@@ -2,37 +2,35 @@ import React from "react";
 import { Image, Page, Text, View } from "@react-pdf/renderer";
 
 import type { InvestmentReportData } from "@/lib/reports/types";
-import { JA_REPORT_LOGO } from "@/lib/reports/pdf/report-assets";
-import { colors, fonts, reportStyles } from "@/lib/reports/pdf/report-theme";
+import { BACK_COVER_PATTERN, JA_REPORT_LOGO } from "@/lib/reports/pdf/report-assets";
+import {
+  FIRM_ADDRESS,
+  REPORT_COVER_TITLE,
+  REPORT_DOCUMENT_TITLE,
+  fonts,
+  reportStyles,
+} from "@/lib/reports/pdf/report-theme";
 
-export function RunningHeader({ clientName }: { clientName: string }) {
-  return (
-    <View style={reportStyles.runningHeader} fixed>
-      <Text style={reportStyles.runningHeaderText}>
-        JA Wealth | Wealth Report | {clientName} | Confidential
-      </Text>
-    </View>
-  );
-}
-
-export function RunningFooter({
+export function ReferenceFooter({
+  clientName,
+  reference,
   clientNumber,
   pageNumber,
-  totalPages,
 }: {
+  clientName: string;
+  reference: string;
   clientNumber: string;
   pageNumber: number;
-  totalPages: number;
 }) {
   return (
-    <View style={reportStyles.runningFooter} fixed>
-      <Text style={reportStyles.footerText}>
-        JA Wealth{"\n"}
-        hello@jagroup.co | jagroup.co
-      </Text>
-      <Text style={reportStyles.footerCenter}>Confidential</Text>
-      <Text style={reportStyles.footerText}>
-        {clientNumber} · Page {pageNumber} of {totalPages}
+    <View style={reportStyles.referenceFooter} fixed>
+      <View style={reportStyles.referenceFooterMeta}>
+        <Text style={reportStyles.referenceFooterLine}>Client: {clientName}</Text>
+        <Text style={reportStyles.referenceFooterLine}>Our Ref: {reference}</Text>
+        <Text style={reportStyles.referenceFooterLine}>Client Number: {clientNumber}</Text>
+      </View>
+      <Text style={reportStyles.referencePageNumber}>
+        {pageNumber} | {REPORT_DOCUMENT_TITLE}
       </Text>
     </View>
   );
@@ -41,24 +39,27 @@ export function RunningFooter({
 export function ReportPageShell({
   clientName,
   clientNumber,
+  reference,
   pageNumber,
-  totalPages,
+  pageTitle,
   children,
 }: {
   clientName: string;
   clientNumber: string;
+  reference: string;
   pageNumber: number;
-  totalPages: number;
+  pageTitle?: string;
   children: React.ReactNode;
 }) {
   return (
-    <Page size="A4" style={reportStyles.page}>
-      <RunningHeader clientName={clientName} />
+    <Page size="A4" orientation="landscape" style={reportStyles.pageLandscape}>
+      {pageTitle ? <Text style={reportStyles.pageTitleLandscape}>{pageTitle}</Text> : null}
       <View>{children}</View>
-      <RunningFooter
+      <ReferenceFooter
+        clientName={clientName}
+        reference={reference}
         clientNumber={clientNumber}
         pageNumber={pageNumber}
-        totalPages={totalPages}
       />
     </Page>
   );
@@ -72,57 +73,59 @@ export function CoverPage({
   logoSrc: string;
 }) {
   return (
-    <Page size="A4" style={reportStyles.coverPage}>
-      <View style={{ paddingTop: 36, paddingHorizontal: 40 }}>
-        <Text
-          style={{
-            fontFamily: fonts.body,
-            fontSize: 10,
-            color: colors.gold,
-            letterSpacing: 1.4,
-            textTransform: "uppercase",
-          }}
-        >
-          Prosper With Purpose
-        </Text>
-      </View>
+    <Page size="A4" orientation="landscape" style={reportStyles.coverPage}>
       <View
         style={{
           flex: 1,
           justifyContent: "center",
           alignItems: "flex-start",
-          paddingTop: 48,
-          paddingHorizontal: 40,
+          paddingHorizontal: 48,
         }}
       >
         <Image src={logoSrc} style={reportStyles.coverLogo} />
         <View style={reportStyles.coverRule} />
-        <Text style={reportStyles.coverTitle}>Wealth Report</Text>
-        <Text style={reportStyles.coverSubtitle}>{data.clientName}</Text>
-        {data.reportKindTitle ? (
-          <Text style={reportStyles.coverSubtitle}>{data.reportKindTitle}</Text>
-        ) : null}
-        <Text style={reportStyles.coverSubtitle}>{data.statementPeriodLabel}</Text>
-        <Text style={reportStyles.coverMeta}>Prepared on {data.preparedOn}</Text>
-        <Text style={reportStyles.coverMeta}>Reference {data.reference}</Text>
+        <Text style={reportStyles.coverClientName}>{data.clientName}</Text>
+        <Text style={reportStyles.coverTitle}>{REPORT_COVER_TITLE}</Text>
+        <Text style={reportStyles.coverDate}>{data.currentStatementLabel}</Text>
       </View>
-      <View style={reportStyles.runningFooter}>
+      <View style={reportStyles.referenceFooter}>
         <Text style={{ fontSize: 6.5, color: "rgba(255,255,255,0.5)", fontFamily: fonts.body }}>
           JA Wealth
         </Text>
         <Text style={{ fontSize: 6.5, color: "rgba(255,255,255,0.5)", fontFamily: fonts.body }}>
-          Confidential
-        </Text>
-        <Text style={{ fontSize: 6.5, color: "rgba(255,255,255,0.5)", fontFamily: fonts.body }}>
-          {data.clientNumber} · Page 1 of {data.totalPages}
+          1 | {REPORT_DOCUMENT_TITLE}
         </Text>
       </View>
     </Page>
   );
 }
 
-export function SectionTitle({ children }: { children: string }) {
-  return <Text style={reportStyles.level2}>{children}</Text>;
+export function BackCoverPage({
+  logoSrc,
+  patternSrc = BACK_COVER_PATTERN,
+}: {
+  logoSrc: string;
+  patternSrc?: string;
+}) {
+  return (
+    <Page size="A4" orientation="landscape" style={reportStyles.backCoverPage}>
+      <View style={reportStyles.backCoverPattern} fixed>
+        <Image src={patternSrc} style={reportStyles.backCoverPatternImage} />
+      </View>
+      <View style={reportStyles.backCoverContent}>
+        <View style={reportStyles.backCoverCenter}>
+          <Image src={logoSrc} style={reportStyles.backCoverLogo} />
+          <Text style={reportStyles.backCoverTagline}>Prosper With Purpose</Text>
+          <View style={reportStyles.backCoverRule} />
+        </View>
+        <View style={reportStyles.backCoverFooter}>
+          <Text style={reportStyles.backCoverFooterText}>JA Wealth</Text>
+          <Text style={reportStyles.backCoverFooterText}>{FIRM_ADDRESS}</Text>
+          <Text style={reportStyles.backCoverFooterText}>hello@jagroup.co | jagroup.co</Text>
+        </View>
+      </View>
+    </Page>
+  );
 }
 
 export function SubsectionTitle({ children }: { children: string }) {
@@ -157,4 +160,8 @@ export function BulletList({ items }: { items: string[] }) {
       ))}
     </View>
   );
+}
+
+export function ReportFootnote({ children }: { children: React.ReactNode }) {
+  return <Text style={reportStyles.footnote}>+ {children}</Text>;
 }

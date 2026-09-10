@@ -55,7 +55,11 @@ export const PERFORMANCE_BUCKETS: PortfolioBucket[] = [
   "venture",
 ];
 
+/** Buckets that support position-level holdings on wealth reports. */
+export const HOLDINGS_BUCKETS: PortfolioBucket[] = PERFORMANCE_BUCKETS;
+
 export function formatUsd(value: number, signed = false): string {
+  if (!Number.isFinite(value)) return "$0";
   const abs = Math.abs(value);
   const formatted = abs.toLocaleString("en-US", {
     style: "currency",
@@ -67,7 +71,7 @@ export function formatUsd(value: number, signed = false): string {
 }
 
 export function formatPct(value: number | null | undefined, signed = false): string {
-  if (value == null) return "N/A";
+  if (value == null || !Number.isFinite(value)) return "N/A";
   const formatted = `${Math.abs(value).toFixed(1)}%`;
   if (!signed || value === 0) return formatted;
   return value > 0 ? `+ ${formatted}` : `- ${formatted}`;

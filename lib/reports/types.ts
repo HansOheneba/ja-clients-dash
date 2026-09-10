@@ -56,6 +56,21 @@ export interface ReportHistoryPoint {
   valueUsd: number;
 }
 
+export interface ReportHoldingRow {
+  id: string;
+  bucket: PortfolioBucket;
+  name: string;
+  ticker: string;
+  originalValueUsd: number;
+  marketValueUsd: number;
+}
+
+export interface ReportHoldingsBreakdown {
+  bucket: PortfolioBucket;
+  label: string;
+  rows: ReportHoldingRow[];
+}
+
 export interface InvestmentReportData {
   clientName: string;
   clientNumber: string;
@@ -76,6 +91,7 @@ export interface InvestmentReportData {
   overviewRows: ReportSnapshotRow[];
   performanceRows: ReportPerformanceRow[];
   allocationSlices: ReportAllocationSlice[];
+  holdingsBreakdowns: ReportHoldingsBreakdown[];
   historyPoints: ReportHistoryPoint[];
   transactions: ReportTransactionRow[];
   contributions: ReportTransactionRow[];

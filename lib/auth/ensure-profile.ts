@@ -1,4 +1,6 @@
+import { syncAuthRoleMetadata } from "@/lib/auth/sync-auth-metadata";
 import { queryDb } from "@/lib/supabase/db";
+import type { UserRole } from "@/lib/wealth/types";
 
 type AdvisorRow = {
   id: string;
@@ -75,5 +77,7 @@ export async function ensureWealthProfile(userId: string, email: string) {
     [userId],
   );
 
-  return profile[0] ?? { id: userId, role };
+  const resolved = profile[0] ?? { id: userId, role };
+  await syncAuthRoleMetadata(userId, resolved.role as UserRole);
+  return resolved;
 }

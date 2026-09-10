@@ -21,13 +21,15 @@ function initialsFrom(name: string) {
 
 export function ClientDashboardLayoutClient({
   initialName,
+  initialUnread = 0,
   children,
 }: {
   initialName: string;
+  initialUnread?: number;
   children: React.ReactNode;
 }) {
   const [name] = useState(initialName);
-  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(initialUnread);
 
   const refreshUnread = useCallback(async () => {
     if (document.visibilityState === "hidden") return;
@@ -44,8 +46,6 @@ export function ClientDashboardLayoutClient({
   }, []);
 
   useEffect(() => {
-    void refreshUnread();
-
     const interval = window.setInterval(() => {
       void refreshUnread();
     }, UNREAD_POLL_MS);

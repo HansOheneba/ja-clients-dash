@@ -8,7 +8,12 @@ import { ArrowLeft } from "lucide-react";
 import { StatementDataWorkspace } from "@/components/advisors/statement-data-workspace";
 import { PageSpinner } from "@/components/ui/page-spinner";
 import { H1, Muted } from "@/components/ui/typography";
-import type { PortfolioSnapshot, StatementPeriod, WealthClient } from "@/lib/wealth/types";
+import type {
+  PortfolioHolding,
+  PortfolioSnapshot,
+  StatementPeriod,
+  WealthClient,
+} from "@/lib/wealth/types";
 
 export default function ClientStatementDataPage() {
   const params = useParams<{ id: string }>();
@@ -20,6 +25,7 @@ export default function ClientStatementDataPage() {
   const [client, setClient] = useState<WealthClient | null>(null);
   const [periods, setPeriods] = useState<StatementPeriod[]>([]);
   const [snapshots, setSnapshots] = useState<PortfolioSnapshot[]>([]);
+  const [holdings, setHoldings] = useState<PortfolioHolding[]>([]);
   const [activePeriodId, setActivePeriodId] = useState<string | null>(null);
 
   const load = useCallback(async (keepPeriodId?: string) => {
@@ -47,8 +53,10 @@ export default function ClientStatementDataPage() {
         );
         const portfolioData = await portfolioRes.json();
         setSnapshots(portfolioData.snapshots ?? data.snapshots ?? []);
+        setHoldings(portfolioData.holdings ?? []);
       } else {
         setSnapshots(data.snapshots ?? []);
+        setHoldings([]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load client");
@@ -101,6 +109,7 @@ export default function ClientStatementDataPage() {
         periods={periods}
         initialPeriodId={initialPeriodId}
         initialSnapshots={snapshots}
+        initialHoldings={holdings}
         onChanged={load}
       />
     </div>

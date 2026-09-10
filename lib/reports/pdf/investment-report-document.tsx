@@ -1,22 +1,26 @@
 import React from "react";
 import { Document, Text, View } from "@react-pdf/renderer";
 
-import type { InvestmentReportData, ReportTransactionRow } from "@/lib/reports/types";
+import type {
+  InvestmentReportData,
+  ReportHoldingsBreakdown,
+  ReportTransactionRow,
+} from "@/lib/reports/types";
 import { formatPct, formatUsd } from "@/lib/wealth/constants";
 import { JA_REPORT_LOGO } from "@/lib/reports/pdf/report-assets";
 import { AllocationChart, ValueChart } from "@/lib/reports/pdf/report-charts";
 import {
+  BackCoverPage,
+  BulletList,
   CoverPage,
   KpiBand,
+  ReportFootnote,
   ReportPageShell,
-  SectionTitle,
   SubsectionTitle,
-  BulletList,
 } from "@/lib/reports/pdf/report-layout";
 import { reportStyles } from "@/lib/reports/pdf/report-theme";
 
-const FIRM_ADDRESS =
-  "WC L, 190 Elgin Avenue, George Town, Grand Cayman, Cayman Islands, KY-1 9008";
+const NOT_APPLICABLE = "Not applicable";
 
 function formatTxDate(date: string) {
   return new Date(`${date}T12:00:00`).toLocaleDateString("en-GB", {
@@ -24,6 +28,11 @@ function formatTxDate(date: string) {
     month: "long",
     year: "numeric",
   });
+}
+
+function holdingGainPct(original: number, market: number): number | null {
+  if (original <= 0) return null;
+  return ((market - original) / original) * 100;
 }
 
 function ClientDetailsGrid({ data }: { data: InvestmentReportData }) {
@@ -73,17 +82,27 @@ function OverviewTable({ data }: { data: InvestmentReportData }) {
   return (
     <View style={reportStyles.table}>
       <View style={reportStyles.tableHeader}>
-        <Text style={[reportStyles.tableHeaderText, { width: "24%" }]}>Asset class</Text>
-        <Text style={[reportStyles.tableHeaderText, { width: "19%", textAlign: "right" }]}>
-          Previous{"\n"}({data.previousStatementLabel})
+        <Text style={[reportStyles.tableHeaderTextLandscape, { width: "22%" }]}>
+          Asset class
         </Text>
-        <Text style={[reportStyles.tableHeaderText, { width: "19%", textAlign: "right" }]}>
-          Current{"\n"}({data.currentStatementLabel})
+        <Text
+          style={[reportStyles.tableHeaderTextLandscape, { width: "20%", textAlign: "right" }]}
+        >
+          Previous statement value{"\n"}({data.previousStatementLabel})
         </Text>
-        <Text style={[reportStyles.tableHeaderText, { width: "19%", textAlign: "right" }]}>
+        <Text
+          style={[reportStyles.tableHeaderTextLandscape, { width: "20%", textAlign: "right" }]}
+        >
+          Current statement value{"\n"}({data.currentStatementLabel})
+        </Text>
+        <Text
+          style={[reportStyles.tableHeaderTextLandscape, { width: "19%", textAlign: "right" }]}
+        >
           Change during period
         </Text>
-        <Text style={[reportStyles.tableHeaderText, { width: "19%", textAlign: "right" }]}>
+        <Text
+          style={[reportStyles.tableHeaderTextLandscape, { width: "19%", textAlign: "right" }]}
+        >
           % change{"\n"}year to date
         </Text>
       </View>
@@ -92,36 +111,131 @@ function OverviewTable({ data }: { data: InvestmentReportData }) {
           key={row.bucket}
           style={[reportStyles.tableRow, i % 2 === 1 ? reportStyles.tableRowAlt : {}]}
         >
-          <Text style={[reportStyles.tableCell, { width: "24%" }]}>{row.label}</Text>
-          <Text style={[reportStyles.tableCellRight, { width: "19%" }]}>
+          <Text style={[reportStyles.tableCellLandscape, { width: "22%" }]}>{row.label}</Text>
+          <Text style={[reportStyles.tableCellRightLandscape, { width: "20%" }]}>
             {formatUsd(row.previousValueUsd)}
           </Text>
-          <Text style={[reportStyles.tableCellRight, { width: "19%" }]}>
+          <Text style={[reportStyles.tableCellRightLandscape, { width: "20%" }]}>
             {formatUsd(row.currentValueUsd)}
           </Text>
-          <Text style={[reportStyles.tableCellRight, { width: "19%" }]}>
-            {row.bucket === "coa" ? "N/A" : formatUsd(row.periodChangeUsd, true)}
+          <Text style={[reportStyles.tableCellRightLandscape, { width: "19%" }]}>
+            {row.bucket === "coa" ? NOT_APPLICABLE : formatUsd(row.periodChangeUsd, true)}
           </Text>
-          <Text style={[reportStyles.tableCellRight, { width: "19%" }]}>
+          <Text style={[reportStyles.tableCellRightLandscape, { width: "19%" }]}>
             {row.bucket === "coa" || row.ytdPct == null
-              ? "N/A"
+              ? NOT_APPLICABLE
               : formatPct(row.ytdPct, true)}
           </Text>
         </View>
       ))}
       <View style={reportStyles.tableTotal}>
-        <Text style={[reportStyles.tableTotalText, { width: "24%" }]}>Total</Text>
-        <Text style={[reportStyles.tableTotalText, { width: "19%", textAlign: "right" }]}>
+        <Text style={[reportStyles.tableTotalTextLandscape, { width: "22%" }]}>Total</Text>
+        <Text
+          style={[reportStyles.tableTotalTextLandscape, { width: "20%", textAlign: "right" }]}
+        >
           {formatUsd(totalPrevious)}
         </Text>
-        <Text style={[reportStyles.tableTotalText, { width: "19%", textAlign: "right" }]}>
+        <Text
+          style={[reportStyles.tableTotalTextLandscape, { width: "20%", textAlign: "right" }]}
+        >
           {formatUsd(totalCurrent)}
         </Text>
-        <Text style={[reportStyles.tableTotalText, { width: "19%", textAlign: "right" }]}>
+        <Text
+          style={[reportStyles.tableTotalTextLandscape, { width: "19%", textAlign: "right" }]}
+        >
           {formatUsd(totalChange, true)}
         </Text>
-        <Text style={[reportStyles.tableTotalText, { width: "19%", textAlign: "right" }]}>
+        <Text
+          style={[reportStyles.tableTotalTextLandscape, { width: "19%", textAlign: "right" }]}
+        >
           {formatPct(data.periodReturnPct, true)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function HoldingsBreakdownTable({ breakdown }: { breakdown: ReportHoldingsBreakdown }) {
+  const totalOriginal = breakdown.rows.reduce((s, r) => s + r.originalValueUsd, 0);
+  const totalMarket = breakdown.rows.reduce((s, r) => s + r.marketValueUsd, 0);
+  const totalGain = totalMarket - totalOriginal;
+  const totalPct = holdingGainPct(totalOriginal, totalMarket);
+
+  return (
+    <View style={reportStyles.table}>
+      <View style={reportStyles.tableHeader}>
+        <Text style={[reportStyles.tableHeaderTextLandscape, { width: "22%" }]}>
+          Investment name
+        </Text>
+        <Text style={[reportStyles.tableHeaderTextLandscape, { width: "10%" }]}>Ticker</Text>
+        <Text
+          style={[reportStyles.tableHeaderTextLandscape, { width: "14%", textAlign: "right" }]}
+        >
+          Original value
+        </Text>
+        <Text
+          style={[reportStyles.tableHeaderTextLandscape, { width: "14%", textAlign: "right" }]}
+        >
+          Market value
+        </Text>
+        <Text
+          style={[reportStyles.tableHeaderTextLandscape, { width: "18%", textAlign: "right" }]}
+        >
+          Unrealised gain/loss
+        </Text>
+        <Text
+          style={[reportStyles.tableHeaderTextLandscape, { width: "12%", textAlign: "right" }]}
+        >
+          % gain/loss
+        </Text>
+      </View>
+      {breakdown.rows.map((row, i) => {
+        const gain = row.marketValueUsd - row.originalValueUsd;
+        const pct = holdingGainPct(row.originalValueUsd, row.marketValueUsd);
+        return (
+          <View
+            key={row.id}
+            style={[reportStyles.tableRow, i % 2 === 1 ? reportStyles.tableRowAlt : {}]}
+          >
+            <Text style={[reportStyles.tableCellLandscape, { width: "22%" }]}>{row.name}</Text>
+            <Text style={[reportStyles.tableCellLandscape, { width: "10%" }]}>{row.ticker}</Text>
+            <Text style={[reportStyles.tableCellRightLandscape, { width: "14%" }]}>
+              {formatUsd(row.originalValueUsd)}
+            </Text>
+            <Text style={[reportStyles.tableCellRightLandscape, { width: "14%" }]}>
+              {formatUsd(row.marketValueUsd)}
+            </Text>
+            <Text style={[reportStyles.tableCellRightLandscape, { width: "18%" }]}>
+              {formatUsd(gain, true)}
+            </Text>
+            <Text style={[reportStyles.tableCellRightLandscape, { width: "12%" }]}>
+              {pct == null ? NOT_APPLICABLE : formatPct(pct, true)}
+            </Text>
+          </View>
+        );
+      })}
+      <View style={reportStyles.tableTotal}>
+        <Text style={[reportStyles.tableTotalTextLandscape, { width: "22%" }]}>Total</Text>
+        <Text style={[reportStyles.tableTotalTextLandscape, { width: "10%" }]} />
+        <Text
+          style={[reportStyles.tableTotalTextLandscape, { width: "14%", textAlign: "right" }]}
+        >
+          {formatUsd(totalOriginal)}
+        </Text>
+        <Text
+          style={[reportStyles.tableTotalTextLandscape, { width: "14%", textAlign: "right" }]}
+        >
+          {formatUsd(totalMarket)}
+        </Text>
+        <Text
+          style={[reportStyles.tableTotalTextLandscape, { width: "18%", textAlign: "right" }]}
+        >
+          {formatUsd(totalGain, true)}
+        </Text>
+        <Text
+          style={[reportStyles.tableTotalTextLandscape, { width: "12%", textAlign: "right" }]}
+        >
+          {totalPct == null ? NOT_APPLICABLE : formatPct(totalPct, true)}
         </Text>
       </View>
     </View>
@@ -134,11 +248,17 @@ function PeriodPerformanceTable({ data }: { data: InvestmentReportData }) {
   return (
     <View style={reportStyles.table}>
       <View style={reportStyles.tableHeader}>
-        <Text style={[reportStyles.tableHeaderText, { width: "40%" }]}>Asset class</Text>
-        <Text style={[reportStyles.tableHeaderText, { width: "30%", textAlign: "right" }]}>
+        <Text style={[reportStyles.tableHeaderTextLandscape, { width: "40%" }]}>
+          Asset class
+        </Text>
+        <Text
+          style={[reportStyles.tableHeaderTextLandscape, { width: "30%", textAlign: "right" }]}
+        >
           Period change
         </Text>
-        <Text style={[reportStyles.tableHeaderText, { width: "30%", textAlign: "right" }]}>
+        <Text
+          style={[reportStyles.tableHeaderTextLandscape, { width: "30%", textAlign: "right" }]}
+        >
           % change YTD
         </Text>
       </View>
@@ -147,21 +267,27 @@ function PeriodPerformanceTable({ data }: { data: InvestmentReportData }) {
           key={row.bucket}
           style={[reportStyles.tableRow, i % 2 === 1 ? reportStyles.tableRowAlt : {}]}
         >
-          <Text style={[reportStyles.tableCell, { width: "40%" }]}>{row.label}</Text>
-          <Text style={[reportStyles.tableCellRight, { width: "30%" }]}>
+          <Text style={[reportStyles.tableCellLandscape, { width: "40%" }]}>{row.label}</Text>
+          <Text style={[reportStyles.tableCellRightLandscape, { width: "30%" }]}>
             {formatUsd(row.periodChangeUsd, true)}
           </Text>
-          <Text style={[reportStyles.tableCellRight, { width: "30%" }]}>
-            {row.ytdPct == null ? "N/A" : formatPct(row.ytdPct, true)}
+          <Text style={[reportStyles.tableCellRightLandscape, { width: "30%" }]}>
+            {row.ytdPct == null ? NOT_APPLICABLE : formatPct(row.ytdPct, true)}
           </Text>
         </View>
       ))}
       <View style={reportStyles.tableTotal}>
-        <Text style={[reportStyles.tableTotalText, { width: "40%" }]}>Portfolio total</Text>
-        <Text style={[reportStyles.tableTotalText, { width: "30%", textAlign: "right" }]}>
+        <Text style={[reportStyles.tableTotalTextLandscape, { width: "40%" }]}>
+          Portfolio total
+        </Text>
+        <Text
+          style={[reportStyles.tableTotalTextLandscape, { width: "30%", textAlign: "right" }]}
+        >
           {formatUsd(data.periodGainUsd, true)}
         </Text>
-        <Text style={[reportStyles.tableTotalText, { width: "30%", textAlign: "right" }]}>
+        <Text
+          style={[reportStyles.tableTotalTextLandscape, { width: "30%", textAlign: "right" }]}
+        >
           {formatPct(data.periodReturnPct, true)}
         </Text>
       </View>
@@ -178,14 +304,22 @@ function InceptionPerformanceTable({ data }: { data: InvestmentReportData }) {
   return (
     <View style={reportStyles.table}>
       <View style={reportStyles.tableHeader}>
-        <Text style={[reportStyles.tableHeaderText, { width: "28%" }]}>Asset class</Text>
-        <Text style={[reportStyles.tableHeaderText, { width: "24%", textAlign: "right" }]}>
+        <Text style={[reportStyles.tableHeaderTextLandscape, { width: "28%" }]}>
+          Asset class
+        </Text>
+        <Text
+          style={[reportStyles.tableHeaderTextLandscape, { width: "24%", textAlign: "right" }]}
+        >
           Gain since inception
         </Text>
-        <Text style={[reportStyles.tableHeaderText, { width: "24%", textAlign: "right" }]}>
+        <Text
+          style={[reportStyles.tableHeaderTextLandscape, { width: "24%", textAlign: "right" }]}
+        >
           % change since inception
         </Text>
-        <Text style={[reportStyles.tableHeaderText, { width: "24%", textAlign: "right" }]}>
+        <Text
+          style={[reportStyles.tableHeaderTextLandscape, { width: "24%", textAlign: "right" }]}
+        >
           % annualised return
         </Text>
       </View>
@@ -194,66 +328,29 @@ function InceptionPerformanceTable({ data }: { data: InvestmentReportData }) {
           key={row.bucket}
           style={[reportStyles.tableRow, i % 2 === 1 ? reportStyles.tableRowAlt : {}]}
         >
-          <Text style={[reportStyles.tableCell, { width: "28%" }]}>{row.label}</Text>
-          <Text style={[reportStyles.tableCellRight, { width: "24%" }]}>
-            {row.inceptionGainUsd == null ? "N/A" : formatUsd(row.inceptionGainUsd, true)}
+          <Text style={[reportStyles.tableCellLandscape, { width: "28%" }]}>{row.label}</Text>
+          <Text style={[reportStyles.tableCellRightLandscape, { width: "24%" }]}>
+            {row.inceptionGainUsd == null ? NOT_APPLICABLE : formatUsd(row.inceptionGainUsd, true)}
           </Text>
-          <Text style={[reportStyles.tableCellRight, { width: "24%" }]}>
-            {row.inceptionPct == null ? "N/A" : formatPct(row.inceptionPct, true)}
+          <Text style={[reportStyles.tableCellRightLandscape, { width: "24%" }]}>
+            {row.inceptionPct == null ? NOT_APPLICABLE : formatPct(row.inceptionPct, true)}
           </Text>
-          <Text style={[reportStyles.tableCellRight, { width: "24%" }]}>
+          <Text style={[reportStyles.tableCellRightLandscape, { width: "24%" }]}>
             {row.annualizedReturnPct == null
-              ? "N/A"
+              ? NOT_APPLICABLE
               : formatPct(row.annualizedReturnPct, true)}
           </Text>
         </View>
       ))}
       <View style={reportStyles.tableTotal}>
-        <Text style={[reportStyles.tableTotalText, { width: "28%" }]}>Total</Text>
-        <Text style={[reportStyles.tableTotalText, { width: "24%", textAlign: "right" }]}>
+        <Text style={[reportStyles.tableTotalTextLandscape, { width: "28%" }]}>Total</Text>
+        <Text
+          style={[reportStyles.tableTotalTextLandscape, { width: "24%", textAlign: "right" }]}
+        >
           {formatUsd(performanceTotalGain, true)}
         </Text>
-        <Text style={[reportStyles.tableTotalText, { width: "24%", textAlign: "right" }]} />
-        <Text style={[reportStyles.tableTotalText, { width: "24%", textAlign: "right" }]} />
-      </View>
-    </View>
-  );
-}
-
-function AllocationBreakdownTable({ data }: { data: InvestmentReportData }) {
-  return (
-    <View style={reportStyles.table}>
-      <View style={reportStyles.tableHeader}>
-        <Text style={[reportStyles.tableHeaderText, { width: "40%" }]}>Asset class</Text>
-        <Text style={[reportStyles.tableHeaderText, { width: "30%", textAlign: "right" }]}>
-          Value
-        </Text>
-        <Text style={[reportStyles.tableHeaderText, { width: "30%", textAlign: "right" }]}>
-          Allocation
-        </Text>
-      </View>
-      {data.allocationSlices.map((slice, i) => (
-        <View
-          key={slice.bucket}
-          style={[reportStyles.tableRow, i % 2 === 1 ? reportStyles.tableRowAlt : {}]}
-        >
-          <Text style={[reportStyles.tableCell, { width: "40%" }]}>{slice.label}</Text>
-          <Text style={[reportStyles.tableCellRight, { width: "30%" }]}>
-            {formatUsd(slice.valueUsd)}
-          </Text>
-          <Text style={[reportStyles.tableCellRight, { width: "30%" }]}>
-            {slice.allocationPct.toFixed(1)}%
-          </Text>
-        </View>
-      ))}
-      <View style={reportStyles.tableTotal}>
-        <Text style={[reportStyles.tableTotalText, { width: "40%" }]}>Total portfolio</Text>
-        <Text style={[reportStyles.tableTotalText, { width: "30%", textAlign: "right" }]}>
-          {formatUsd(data.totalPortfolioValueUsd)}
-        </Text>
-        <Text style={[reportStyles.tableTotalText, { width: "30%", textAlign: "right" }]}>
-          100.0%
-        </Text>
+        <Text style={[reportStyles.tableTotalTextLandscape, { width: "24%", textAlign: "right" }]} />
+        <Text style={[reportStyles.tableTotalTextLandscape, { width: "24%", textAlign: "right" }]} />
       </View>
     </View>
   );
@@ -273,11 +370,15 @@ function TransactionsTable({
   return (
     <View style={reportStyles.table}>
       <View style={reportStyles.tableHeader}>
-        <Text style={[reportStyles.tableHeaderText, { width: "25%" }]}>Date</Text>
-        <Text style={[reportStyles.tableHeaderText, { width: "22%", textAlign: "right" }]}>
+        <Text style={[reportStyles.tableHeaderTextLandscape, { width: "20%" }]}>Date</Text>
+        <Text
+          style={[reportStyles.tableHeaderTextLandscape, { width: "18%", textAlign: "right" }]}
+        >
           Amount
         </Text>
-        <Text style={[reportStyles.tableHeaderText, { width: "53%", paddingLeft: 8 }]}>
+        <Text
+          style={[reportStyles.tableHeaderTextLandscape, { width: "62%", paddingLeft: 8 }]}
+        >
           Description
         </Text>
       </View>
@@ -286,11 +387,13 @@ function TransactionsTable({
           key={tx.id}
           style={[reportStyles.tableRow, i % 2 === 1 ? reportStyles.tableRowAlt : {}]}
         >
-          <Text style={[reportStyles.tableCell, { width: "25%" }]}>{formatTxDate(tx.date)}</Text>
-          <Text style={[reportStyles.tableCellRight, { width: "22%" }]}>
+          <Text style={[reportStyles.tableCellLandscape, { width: "20%" }]}>
+            {formatTxDate(tx.date)}
+          </Text>
+          <Text style={[reportStyles.tableCellRightLandscape, { width: "18%" }]}>
             {formatUsd(tx.amountUsd)}
           </Text>
-          <Text style={[reportStyles.tableCell, { width: "53%", paddingLeft: 8 }]}>
+          <Text style={[reportStyles.tableCellLandscape, { width: "62%", paddingLeft: 8 }]}>
             {tx.description}
           </Text>
         </View>
@@ -306,12 +409,33 @@ export function InvestmentReportDocument({
   data: InvestmentReportData;
   logoSrc?: string;
 }) {
+  const shellProps = {
+    clientName: data.clientName,
+    clientNumber: data.clientNumber,
+    reference: data.reference,
+  };
+
+  // Page 1: cover (portrait). Content pages start at 2.
+  let pageNumber = 1;
+
   return (
     <Document>
       <CoverPage data={data} logoSrc={logoSrc} />
 
-      <ReportPageShell clientName={data.clientName} clientNumber={data.clientNumber} pageNumber={2} totalPages={data.totalPages}>
-        <Text style={reportStyles.level1}>Executive Summary</Text>
+      <ReportPageShell
+        {...shellProps}
+        pageNumber={++pageNumber}
+        pageTitle="Disclaimer"
+      >
+        <Text style={reportStyles.disclaimerTitle}>{data.disclaimerTitle}</Text>
+        <Text style={reportStyles.disclaimerBody}>{data.disclaimerBody}</Text>
+      </ReportPageShell>
+
+      <ReportPageShell
+        {...shellProps}
+        pageNumber={++pageNumber}
+        pageTitle="Executive Summary"
+      >
         <ClientDetailsGrid data={data} />
         <KpiBand
           items={[
@@ -321,67 +445,6 @@ export function InvestmentReportDocument({
           ]}
         />
         <Text style={reportStyles.bodyText}>{data.executiveSummary}</Text>
-        <SubsectionTitle>Period performance</SubsectionTitle>
-        <PeriodPerformanceTable data={data} />
-        <Text style={reportStyles.footnote}>
-          Percentage change reflects returns on invested capital and excludes uninvested cash on
-          account unless noted. All values in {data.currency}.
-        </Text>
-      </ReportPageShell>
-
-      <ReportPageShell clientName={data.clientName} clientNumber={data.clientNumber} pageNumber={3} totalPages={data.totalPages}>
-        <Text style={reportStyles.level1}>Portfolio Overview</Text>
-        <SubsectionTitle>Portfolio summary</SubsectionTitle>
-        <OverviewTable data={data} />
-        <SubsectionTitle>Portfolio allocation</SubsectionTitle>
-        <View style={reportStyles.chartBox}>
-          <AllocationChart slices={data.allocationSlices} />
-        </View>
-        <SubsectionTitle>Allocation breakdown</SubsectionTitle>
-        <AllocationBreakdownTable data={data} />
-      </ReportPageShell>
-
-      <ReportPageShell clientName={data.clientName} clientNumber={data.clientNumber} pageNumber={4} totalPages={data.totalPages}>
-        <Text style={reportStyles.level1}>Performance</Text>
-        <SubsectionTitle>Portfolio value over time</SubsectionTitle>
-        <View style={reportStyles.chartBox}>
-          <ValueChart points={data.historyPoints} />
-        </View>
-        <SubsectionTitle>Period performance</SubsectionTitle>
-        <PeriodPerformanceTable data={data} />
-        <SubsectionTitle>Cumulative performance since inception</SubsectionTitle>
-        <InceptionPerformanceTable data={data} />
-      </ReportPageShell>
-
-      <ReportPageShell clientName={data.clientName} clientNumber={data.clientNumber} pageNumber={5} totalPages={data.totalPages}>
-        <Text style={reportStyles.level1}>Transactions & Activity</Text>
-        <SubsectionTitle>Recent transactions</SubsectionTitle>
-        <TransactionsTable
-          rows={data.transactions}
-          emptyMessage="No transactions recorded for this statement period."
-        />
-        {data.transactionsNote ? (
-          <Text style={reportStyles.footnote}>{data.transactionsNote}</Text>
-        ) : null}
-        <SubsectionTitle>Contributions</SubsectionTitle>
-        <TransactionsTable
-          rows={data.contributions}
-          emptyMessage="No contributions recorded for this statement period."
-        />
-        <SubsectionTitle>Withdrawals</SubsectionTitle>
-        <TransactionsTable
-          rows={data.withdrawals}
-          emptyMessage="No withdrawals recorded for this statement period."
-        />
-        <SubsectionTitle>Other portfolio activity</SubsectionTitle>
-        <TransactionsTable
-          rows={data.otherActivity}
-          emptyMessage="No other activity recorded for this statement period."
-        />
-      </ReportPageShell>
-
-      <ReportPageShell clientName={data.clientName} clientNumber={data.clientNumber} pageNumber={6} totalPages={data.totalPages}>
-        <Text style={reportStyles.level1}>Important Information</Text>
         {data.advisor ? (
           <>
             <SubsectionTitle>Your wealth manager</SubsectionTitle>
@@ -394,26 +457,92 @@ export function InvestmentReportDocument({
               <Text style={reportStyles.bodyText}>{data.advisor.phone}</Text>
             ) : null}
           </>
-        ) : (
-          <>
-            <SubsectionTitle>Your wealth manager</SubsectionTitle>
-            <Text style={reportStyles.muted}>
-              Contact hello@jagroup.co for advisor details.
-            </Text>
-          </>
-        )}
+        ) : null}
         <SubsectionTitle>Important notices</SubsectionTitle>
         <BulletList items={data.importantNotices} />
-        <SubsectionTitle>{data.disclaimerTitle}</SubsectionTitle>
-        <Text style={[reportStyles.bodyText, { fontSize: 7.5, lineHeight: 1.5, textAlign: "justify" }]}>
-          {data.disclaimerBody}
-        </Text>
-        <View style={{ marginTop: 20, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: "#e8e4dc" }}>
-          <Text style={reportStyles.muted}>JA Wealth</Text>
-          <Text style={reportStyles.muted}>{FIRM_ADDRESS}</Text>
-          <Text style={reportStyles.muted}>hello@jagroup.co | jagroup.co</Text>
+        <SubsectionTitle>Period performance</SubsectionTitle>
+        <PeriodPerformanceTable data={data} />
+        <ReportFootnote>
+          Percentage change reflects returns on invested capital and excludes uninvested cash on
+          account unless noted. All values in {data.currency}.
+        </ReportFootnote>
+      </ReportPageShell>
+
+      <ReportPageShell
+        {...shellProps}
+        pageNumber={++pageNumber}
+        pageTitle="Portfolio Overview"
+      >
+        <OverviewTable data={data} />
+        <ReportFootnote>
+          Percentage change only reflects returns on invested capital and ignores the cash held on
+          account.
+        </ReportFootnote>
+      </ReportPageShell>
+
+      {data.holdingsBreakdowns.map((breakdown) => (
+        <ReportPageShell
+          key={breakdown.bucket}
+          {...shellProps}
+          pageNumber={++pageNumber}
+          pageTitle={breakdown.label}
+        >
+          <HoldingsBreakdownTable breakdown={breakdown} />
+        </ReportPageShell>
+      ))}
+
+      <ReportPageShell
+        {...shellProps}
+        pageNumber={++pageNumber}
+        pageTitle="Portfolio Allocation"
+      >
+        <AllocationChart slices={data.allocationSlices} />
+      </ReportPageShell>
+
+      <ReportPageShell
+        {...shellProps}
+        pageNumber={++pageNumber}
+        pageTitle="Recent Transactions"
+      >
+        <TransactionsTable
+          rows={data.transactions}
+          emptyMessage="No transactions recorded for this statement period."
+        />
+        {data.transactionsNote ? (
+          <Text style={reportStyles.footnote}>{data.transactionsNote}</Text>
+        ) : null}
+      </ReportPageShell>
+
+      <ReportPageShell
+        {...shellProps}
+        pageNumber={++pageNumber}
+        pageTitle="Performance"
+      >
+        <SubsectionTitle>Portfolio value over time</SubsectionTitle>
+        <View style={reportStyles.chartBoxLandscape}>
+          <ValueChart points={data.historyPoints} />
         </View>
       </ReportPageShell>
+
+      <ReportPageShell
+        {...shellProps}
+        pageNumber={++pageNumber}
+        pageTitle="Performance"
+      >
+        <SubsectionTitle>Period performance</SubsectionTitle>
+        <PeriodPerformanceTable data={data} />
+      </ReportPageShell>
+
+      <ReportPageShell
+        {...shellProps}
+        pageNumber={++pageNumber}
+        pageTitle="Performance"
+      >
+        <SubsectionTitle>Cumulative performance since inception</SubsectionTitle>
+        <InceptionPerformanceTable data={data} />
+      </ReportPageShell>
+
+      <BackCoverPage logoSrc={logoSrc} />
     </Document>
   );
 }

@@ -47,6 +47,7 @@ export async function getClientOverviewData(
   const client = await getClientById(clientId);
   if (!client) return null;
 
+  const periodsPromise = getStatementPeriodsForClient(clientId);
   const [
     periods,
     portfolio,
@@ -56,8 +57,8 @@ export async function getClientOverviewData(
     goals,
     reports,
   ] = await Promise.all([
-    getStatementPeriodsForClient(clientId),
-    getJaPortfolioForClient(clientId),
+    periodsPromise,
+    periodsPromise.then((p) => getJaPortfolioForClient(clientId, p)),
     getUpdatesForClient(clientId, 1),
     getNextSessionForClient(clientId),
     getFirstPendingDocumentRequest(clientId),

@@ -6,8 +6,11 @@ import {
   formatReference,
 } from "@/lib/reports/assemble-report-data";
 import { getDemoSnapshots, type DemoSnapshotInput } from "@/lib/reports/demo-client-data";
+import { computeReportTotalPages } from "@/lib/reports/pdf/report-theme";
+import { JOHN_DOE_TEMPLATE_GROWTH_HOLDINGS } from "@/lib/reports/template-holdings";
 import type {
   InvestmentReportData,
+  ReportHoldingsBreakdown,
   ReportSnapshotRow,
   ReportTransactionRow,
 } from "@/lib/reports/types";
@@ -39,22 +42,26 @@ const MONTH_NUM: Record<string, number> = {
 const JOHN_DOE_TRANSACTIONS: ReportTransactionRow[] = [
   {
     id: "demo-tx-1",
-    date: "2026-02-10",
-    amountUsd: 16000,
-    description: "Income Portfolio Drawdown",
-    transactionType: "drawdown",
-  },
-  {
-    id: "demo-tx-2",
-    date: "2026-05-22",
-    amountUsd: 12000,
-    description: "Income Portfolio Drawdown",
-    transactionType: "drawdown",
+    date: "2026-02-24",
+    amountUsd: 250000,
+    description: "Growth Portfolio Investment",
+    transactionType: "deposit",
   },
 ];
 
 const DEMO_DISCLAIMER_BODY =
   "This document has been printed at the client's request and shows the status of the client's portfolio on the date indicated. Portfolio valuations, as well as stock market and currency prices, apply for the time the valuation is printed. Performance is shown purely for information purposes. Past performance should not be considered as a guarantee or indication of future results.";
+
+const JOHN_DOE_GROWTH_HOLDINGS: ReportHoldingsBreakdown = {
+  bucket: "growth",
+  label: "Growth Portfolio Breakdown",
+  rows: JOHN_DOE_TEMPLATE_GROWTH_HOLDINGS.map((row) => ({ ...row, bucket: "growth" as const })),
+};
+
+function demoHoldingsBreakdowns(clientId: string): ReportHoldingsBreakdown[] {
+  if (clientId !== "john-doe") return [];
+  return [JOHN_DOE_GROWTH_HOLDINGS];
+}
 
 function historyPoints(client: AdvisorClient) {
   let year = client.id === "john-doe" ? 2024 : 2025;
@@ -91,9 +98,9 @@ function parseLocation(location: string): {
 function periodForClient(client: AdvisorClient) {
   if (client.id === "john-doe") {
     return {
-      label: "Q2 2026 (1 Apr - 30 Jun 2026)",
-      start: "2026-04-01",
-      end: "2026-06-30",
+      label: "Q2 2026 (25 Mar - 25 Jun 2026)",
+      start: "2026-03-25",
+      end: "2026-06-25",
     };
   }
   return {
@@ -103,15 +110,9 @@ function periodForClient(client: AdvisorClient) {
   };
 }
 
-function transactionsForPeriod(
-  client: AdvisorClient,
-  periodStart: string,
-  periodEnd: string,
-): ReportTransactionRow[] {
+function transactionsForPeriod(client: AdvisorClient): ReportTransactionRow[] {
   if (client.id !== "john-doe") return [];
-  return JOHN_DOE_TRANSACTIONS.filter(
-    (tx) => tx.date >= periodStart && tx.date <= periodEnd,
-  );
+  return JOHN_DOE_TRANSACTIONS;
 }
 
 function clientNumber(client: AdvisorClient) {
@@ -181,9 +182,10 @@ export function assembleDemoInvestmentReport(
       color: BUCKET_COLORS[row.bucket],
     }));
 
-  const transactions = transactionsForPeriod(client, period.start, period.end);
+  const transactions = transactionsForPeriod(client);
   const location = parseLocation(client.location);
   const refCode = referenceCode(client);
+  const holdingsBreakdowns = demoHoldingsBreakdowns(clientId);
 
   return {
     clientName: client.name,
@@ -191,7 +193,7 @@ export function assembleDemoInvestmentReport(
     referenceCode: refCode,
     reference: formatReference(refCode, preparedOn),
     preparedOn: formatOrdinalDate(preparedOn),
-    reportKindTitle: "Monthly statement",
+    reportKindTitle: client.id === "john-doe" ? "Investment Report" : "Monthly statement",
     statementPeriodLabel: period.label,
     periodStart: period.start,
     periodEnd: period.end,
@@ -211,15 +213,13 @@ export function assembleDemoInvestmentReport(
     overviewRows,
     performanceRows,
     allocationSlices,
+    holdingsBreakdowns,
     historyPoints: historyPoints(client),
     transactions,
-    contributions: [],
+    contributions: transactions.filter((tx) => tx.transactionType === "deposit"),
     withdrawals: transactions.filter((tx) => tx.transactionType === "drawdown"),
     otherActivity: [],
-    transactionsNote:
-      transactions.length > 0
-        ? "Note: Showing Income Portfolio drawdown transactions only for this statement period."
-        : null,
+    transactionsNote: null,
     executiveSummary: buildExecutiveSummary(
       period.label,
       periodGainUsd,
@@ -236,6 +236,6 @@ export function assembleDemoInvestmentReport(
     disclaimerTitle: "Important Notice Regarding Valuations and Performance",
     disclaimerBody: DEMO_DISCLAIMER_BODY,
     includedSections: [...ALL_REPORT_SECTIONS],
-    totalPages: 2 + ALL_REPORT_SECTIONS.length,
+    totalPages: computeReportTotalPages(holdingsBreakdowns.length),
   };
 }

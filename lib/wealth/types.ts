@@ -124,6 +124,18 @@ export interface StatementPeriod {
   label: string;
 }
 
+export interface PortfolioHolding {
+  id: string;
+  client_id: string;
+  period_id: string | null;
+  bucket: PortfolioBucket;
+  investment_name: string;
+  ticker: string;
+  original_value_usd: number;
+  market_value_usd: number;
+  sort_order: number;
+}
+
 export interface PortfolioSnapshot {
   id: string;
   client_id: string;
@@ -196,7 +208,7 @@ export interface SessionProfile {
 }
 
 export const JOHN_DOE_CLIENT_ID = "c0000000-0000-4000-8000-000000000001";
-export const JOHN_DOE_PERIOD_ID = "b0000000-0000-4000-8000-000000000001";
+export const JOHN_DOE_PERIOD_ID = "b0000000-0000-4000-8000-000000000007";
 
 export const CLIENT_SELECT = `
   id, client_number, reference_code, full_name, email, phone, currency,

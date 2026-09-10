@@ -1,6 +1,7 @@
-import { Line, Path, Polygon, Polyline, Svg, Text, View } from "@react-pdf/renderer";
+import { Line, Path, Polygon, Polyline, Svg, Text as SvgText, Text, View } from "@react-pdf/renderer";
 
 import type { InvestmentReportData } from "@/lib/reports/types";
+import type { PortfolioBucket } from "@/lib/wealth/types";
 import { colors, fonts, reportStyles } from "@/lib/reports/pdf/report-theme";
 
 function formatCompactUsd(value: number) {
@@ -14,6 +15,26 @@ function formatMonthLabel(date: string) {
     month: "short",
     year: "2-digit",
   });
+}
+
+function allocationLegendLabel(bucket: PortfolioBucket, label: string) {
+  if (bucket === "coa") return "COA";
+  return label;
+}
+
+function sliceLabelColor(hex: string) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) {
+    return colors.white;
+  }
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.62 ? colors.navy : colors.white;
+}
+
+function finiteCoord(value: number) {
+  return Number.isFinite(value) ? value : 0;
 }
 
 export function ValueChart({ points }: { points: InvestmentReportData["historyPoints"] }) {
@@ -123,51 +144,117 @@ export function AllocationChart({
 }: {
   slices: InvestmentReportData["allocationSlices"];
 }) {
-  const cx = 56;
-  const cy = 56;
-  const r = 44;
+  const activeSlices = slices.filter(
+    (slice) => Number.isFinite(slice.allocationPct) && slice.allocationPct > 0.05,
+  );
+
+  if (activeSlices.length === 0) {
+    return <Text style={reportStyles.emptyRow}>No allocation data for this statement.</Text>;
+  }
+
+  const pctTotal = activeSlices.reduce((sum, slice) => sum + slice.allocationPct, 0);
+  const normalizedSlices = activeSlices.map((slice) => ({
+    ...slice,
+    allocationPct: pctTotal > 0 ? (slice.allocationPct / pctTotal) * 100 : 0,
+  }));
+
+  const size = 260;
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = size * 0.38;
   let cumulative = 0;
 
-  const paths = slices.map((slice) => {
-    const start = (cumulative / 100) * 2 * Math.PI - Math.PI / 2;
-    cumulative += slice.allocationPct;
-    const end = (cumulative / 100) * 2 * Math.PI - Math.PI / 2;
-    const x1 = cx + r * Math.cos(start);
-    const y1 = cy + r * Math.sin(start);
-    const x2 = cx + r * Math.cos(end);
-    const y2 = cy + r * Math.sin(end);
-    const large = slice.allocationPct > 50 ? 1 : 0;
+  const segments = normalizedSlices.flatMap((slice) => {
+    const pct = slice.allocationPct;
+    if (pct <= 0) return [];
+
+    const startPct = cumulative;
+    cumulative += pct;
+    const endPct = cumulative;
+    const start = (startPct / 100) * 2 * Math.PI - Math.PI / 2;
+    const end = (endPct / 100) * 2 * Math.PI - Math.PI / 2;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end - start <= 0) return [];
+
+    const mid = (start + end) / 2;
+    const x1 = finiteCoord(cx + r * Math.cos(start));
+    const y1 = finiteCoord(cy + r * Math.sin(start));
+    const x2 = finiteCoord(cx + r * Math.cos(end));
+    const y2 = finiteCoord(cy + r * Math.sin(end));
+    const large = pct > 50 ? 1 : 0;
     const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
-    return <Path key={slice.bucket} d={d} fill={slice.color} />;
+    const labelR = r * 0.62;
+    const labelX = finiteCoord(cx + labelR * Math.cos(mid));
+    const labelY = finiteCoord(cy + labelR * Math.sin(mid) + 3);
+    return [
+      {
+        slice,
+        d,
+        labelX,
+        labelY,
+        showLabel: pct >= 4,
+      },
+    ];
   });
 
-  const leftCol = slices.filter((_, i) => i % 2 === 0);
-  const rightCol = slices.filter((_, i) => i % 2 === 1);
-
   return (
-    <View>
-      <View style={{ alignItems: "center", marginBottom: 10 }}>
-        <Svg width={112} height={112} viewBox="0 0 112 112">
-          {paths}
-        </Svg>
-      </View>
-      <View style={{ flexDirection: "row", gap: 16 }}>
-        <View style={{ flex: 1 }}>
-          {leftCol.map((s) => (
-            <Text key={s.bucket} style={{ fontSize: 8, marginBottom: 5, fontFamily: fonts.body }}>
-              <Text style={{ color: colors.gold, fontWeight: 500 }}>{s.label}: </Text>
-              <Text style={{ fontWeight: 600 }}>{s.allocationPct.toFixed(1)}%</Text>
+    <View style={reportStyles.allocationPage}>
+      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        {segments.map(({ slice, d }) => (
+          <Path key={slice.bucket} d={d} fill={slice.color} />
+        ))}
+        {segments.map(({ slice, labelX, labelY, showLabel }) =>
+          showLabel ? (
+            <SvgText
+              key={`${slice.bucket}-label`}
+              x={labelX}
+              y={labelY}
+              fill={sliceLabelColor(slice.color)}
+              textAnchor="middle"
+              style={{
+                fontFamily: fonts.body,
+                fontSize: 11,
+                fontWeight: 600,
+              }}
+            >
+              {`${Math.round(slice.allocationPct)}%`}
+            </SvgText>
+          ) : null,
+        )}
+      </Svg>
+      <View
+        style={{
+          flexDirection: "row",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          gap: 20,
+          marginTop: 28,
+          maxWidth: 640,
+        }}
+      >
+        {normalizedSlices.map((slice) => (
+          <View
+            key={slice.bucket}
+            style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+          >
+            <View
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 2,
+                backgroundColor: slice.color,
+              }}
+            />
+            <Text
+              style={{
+                fontFamily: fonts.body,
+                fontSize: 9,
+                color: colors.ink,
+              }}
+            >
+              {allocationLegendLabel(slice.bucket, slice.label)}
             </Text>
-          ))}
-        </View>
-        <View style={{ flex: 1 }}>
-          {rightCol.map((s) => (
-            <Text key={s.bucket} style={{ fontSize: 8, marginBottom: 5, fontFamily: fonts.body }}>
-              <Text style={{ color: colors.gold, fontWeight: 500 }}>{s.label}: </Text>
-              <Text style={{ fontWeight: 600 }}>{s.allocationPct.toFixed(1)}%</Text>
-            </Text>
-          ))}
-        </View>
+          </View>
+        ))}
       </View>
     </View>
   );

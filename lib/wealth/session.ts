@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { dashboardHomeForRole, isAdvisorRole } from "@/lib/auth/dashboard-routes";
 import { createClient } from "@/lib/supabase/server";
@@ -10,11 +11,11 @@ export type AuthedSession = {
   profile: SessionProfile;
 };
 
-export async function getSessionProfile(): Promise<{
+export const getSessionProfile = cache(async (): Promise<{
   userId: string;
   email: string;
   profile: SessionProfile | null;
-} | null> {
+} | null> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -27,7 +28,7 @@ export async function getSessionProfile(): Promise<{
     email: user.email ?? "",
     profile,
   };
-}
+});
 
 export async function requireUser(): Promise<AuthedSession> {
   const session = await getSessionProfile();

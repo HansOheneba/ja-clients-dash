@@ -1,6 +1,13 @@
 import { StyleSheet } from "@react-pdf/renderer";
 
-export const REPORT_PAGES = 6;
+export const REPORT_DOCUMENT_TITLE = "Investment Report";
+export const REPORT_COVER_TITLE = "Your Investment Report";
+
+/** Base pages: cover, disclaimer, overview, allocation, transactions, exec, performance x3, back cover */
+export const REPORT_BASE_PAGES = 10;
+
+export const FIRM_ADDRESS =
+  "WC L, 190 Elgin Avenue, George Town, Grand Cayman, Cayman Islands, KY-1 9008";
 
 export const colors = {
   navy: "#202356",
@@ -23,8 +30,17 @@ export const reportStyles = StyleSheet.create({
   page: {
     backgroundColor: colors.page,
     paddingTop: 52,
-    paddingBottom: 44,
+    paddingBottom: 56,
     paddingHorizontal: 40,
+    fontFamily: fonts.body,
+    fontSize: 9,
+    color: colors.ink,
+  },
+  pageLandscape: {
+    backgroundColor: colors.page,
+    paddingTop: 48,
+    paddingBottom: 52,
+    paddingHorizontal: 36,
     fontFamily: fonts.body,
     fontSize: 9,
     color: colors.ink,
@@ -33,72 +49,135 @@ export const reportStyles = StyleSheet.create({
     backgroundColor: colors.navy,
     paddingTop: 0,
     paddingBottom: 44,
-    paddingHorizontal: 40,
+    paddingHorizontal: 48,
     fontFamily: fonts.body,
   },
-  runningHeader: {
-    position: "absolute",
-    top: 18,
-    left: 40,
-    right: 40,
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.rule,
-    paddingBottom: 6,
-  },
-  runningHeaderText: {
-    fontSize: 6.5,
-    color: colors.muted,
+  backCoverPage: {
+    backgroundColor: colors.navy,
+    paddingHorizontal: 48,
     fontFamily: fonts.body,
-    fontWeight: 500,
-    letterSpacing: 0.3,
+    position: "relative",
   },
-  runningFooter: {
+  backCoverPattern: {
     position: "absolute",
-    bottom: 16,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.35,
+  },
+  backCoverPatternImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+  backCoverContent: {
+    flex: 1,
+    position: "relative",
+  },
+  backCoverCenter: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  backCoverLogo: {
+    width: 220,
+    height: 40,
+    marginBottom: 28,
+  },
+  backCoverTagline: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.gold,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    marginBottom: 16,
+  },
+  backCoverRule: {
+    width: 56,
+    height: 2,
+    backgroundColor: colors.gold,
+  },
+  backCoverFooter: {
+    position: "absolute",
+    bottom: 36,
+    left: 48,
+    right: 48,
+    alignItems: "center",
+  },
+  backCoverFooterText: {
+    fontFamily: fonts.body,
+    fontSize: 8,
+    color: "rgba(255,255,255,0.65)",
+    lineHeight: 1.5,
+    textAlign: "center",
+  },
+  pageTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 20,
+    color: colors.navy,
+    marginBottom: 14,
+  },
+  pageTitleLandscape: {
+    fontFamily: fonts.heading,
+    fontSize: 22,
+    color: colors.navy,
+    marginBottom: 12,
+  },
+  referenceFooter: {
+    position: "absolute",
+    bottom: 18,
+    left: 36,
+    right: 36,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+  },
+  referenceFooterPortrait: {
+    position: "absolute",
+    bottom: 18,
     left: 40,
     right: 40,
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-end",
     justifyContent: "space-between",
-    borderTopWidth: 0.5,
-    borderTopColor: colors.rule,
-    paddingTop: 6,
   },
-  footerText: {
-    fontSize: 6.5,
+  referenceFooterMeta: {
+    gap: 2,
+  },
+  referenceFooterLine: {
+    fontSize: 7,
     color: colors.muted,
     fontFamily: fonts.body,
   },
-  footerCenter: {
-    fontSize: 6.5,
+  referencePageNumber: {
+    fontSize: 8,
     color: colors.muted,
     fontFamily: fonts.body,
-    fontWeight: 500,
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
+    textAlign: "right",
   },
   coverLogo: {
     width: 180,
     height: 32,
     marginBottom: 48,
   },
-  coverTitle: {
+  coverClientName: {
     fontFamily: fonts.heading,
-    fontSize: 28,
+    fontSize: 26,
     color: colors.white,
+    marginBottom: 12,
+  },
+  coverTitle: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: "#d4c4ad",
     marginBottom: 8,
   },
-  coverSubtitle: {
+  coverDate: {
     fontFamily: fonts.body,
     fontSize: 11,
-    color: "#d4c4ad",
-    marginBottom: 4,
-  },
-  coverMeta: {
-    fontFamily: fonts.body,
-    fontSize: 9,
-    color: "rgba(255,255,255,0.72)",
-    marginTop: 24,
+    color: "rgba(255,255,255,0.85)",
+    marginTop: 8,
   },
   coverRule: {
     width: 48,
@@ -211,6 +290,13 @@ export const reportStyles = StyleSheet.create({
     color: colors.white,
     letterSpacing: 0.3,
   },
+  tableHeaderTextLandscape: {
+    fontSize: 7.5,
+    fontFamily: fonts.body,
+    fontWeight: 500,
+    color: colors.white,
+    letterSpacing: 0.3,
+  },
   tableRow: {
     flexDirection: "row",
     paddingVertical: 7,
@@ -226,8 +312,20 @@ export const reportStyles = StyleSheet.create({
     fontFamily: fonts.body,
     color: "#333333",
   },
+  tableCellLandscape: {
+    fontSize: 8.5,
+    fontFamily: fonts.body,
+    color: "#333333",
+  },
   tableCellRight: {
     fontSize: 8,
+    fontFamily: fonts.body,
+    fontWeight: 600,
+    textAlign: "right",
+    color: colors.ink,
+  },
+  tableCellRightLandscape: {
+    fontSize: 8.5,
     fontFamily: fonts.body,
     fontWeight: 600,
     textAlign: "right",
@@ -247,6 +345,12 @@ export const reportStyles = StyleSheet.create({
     fontWeight: 600,
     color: colors.navy,
   },
+  tableTotalTextLandscape: {
+    fontSize: 8.5,
+    fontFamily: fonts.body,
+    fontWeight: 600,
+    color: colors.navy,
+  },
   chartBox: {
     marginBottom: 10,
     paddingVertical: 10,
@@ -254,6 +358,21 @@ export const reportStyles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: colors.rule,
     backgroundColor: colors.white,
+  },
+  chartBoxLandscape: {
+    marginTop: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderWidth: 0.5,
+    borderColor: colors.rule,
+    backgroundColor: colors.white,
+    alignItems: "center",
+  },
+  allocationPage: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 16,
+    paddingBottom: 24,
   },
   chartCaption: {
     fontSize: 7,
@@ -269,7 +388,7 @@ export const reportStyles = StyleSheet.create({
   footnote: {
     fontSize: 7,
     color: colors.muted,
-    marginTop: 4,
+    marginTop: 6,
     lineHeight: 1.4,
     fontFamily: fonts.body,
     fontStyle: "italic",
@@ -292,4 +411,21 @@ export const reportStyles = StyleSheet.create({
     fontFamily: fonts.body,
     paddingVertical: 6,
   },
+  disclaimerTitle: {
+    fontFamily: fonts.heading,
+    fontSize: 18,
+    color: colors.navy,
+    marginBottom: 12,
+  },
+  disclaimerBody: {
+    fontFamily: fonts.body,
+    fontSize: 8,
+    lineHeight: 1.55,
+    color: "#444444",
+    textAlign: "justify",
+  },
 });
+
+export function computeReportTotalPages(holdingsPageCount: number): number {
+  return REPORT_BASE_PAGES + holdingsPageCount;
+}

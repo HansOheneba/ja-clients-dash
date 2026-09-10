@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Loader2, Plus, TrendingUp } from "lucide-react";
 
+import { PortfolioHoldingsEditor } from "@/components/advisors/portfolio-holdings-editor";
 import { GenerateReportButton } from "@/components/reports/generate-report-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ import {
 } from "@/lib/wealth/period-calendar";
 import type {
   PortfolioBucket,
+  PortfolioHolding,
   PortfolioSnapshot,
   StatementPeriod,
   TransactionType,
@@ -103,6 +105,7 @@ export function StatementDataWorkspace({
   periods,
   initialPeriodId,
   initialSnapshots,
+  initialHoldings = [],
   onChanged,
 }: {
   clientId: string;
@@ -110,6 +113,7 @@ export function StatementDataWorkspace({
   periods: StatementPeriod[];
   initialPeriodId: string | null;
   initialSnapshots: PortfolioSnapshot[];
+  initialHoldings?: PortfolioHolding[];
   onChanged: (keepPeriodId?: string) => void;
 }) {
   const [periodId, setPeriodId] = useState(initialPeriodId ?? periods[0]?.id ?? "");
@@ -130,6 +134,7 @@ export function StatementDataWorkspace({
   const [txRows, setTxRows] = useState<WealthTransaction[]>([]);
   const [txLoading, setTxLoading] = useState(false);
   const [showTxForm, setShowTxForm] = useState(false);
+  const [holdings, setHoldings] = useState<PortfolioHolding[]>(initialHoldings);
 
   const selectedPeriod = periods.find((period) => period.id === periodId) ?? null;
   const txPageCount = Math.max(1, Math.ceil(txTotal / TX_PAGE_SIZE));
@@ -145,8 +150,9 @@ export function StatementDataWorkspace({
   useEffect(() => {
     if (!periodId || initialPeriodId === periodId) {
       setDraft(toDraft(initialSnapshots));
+      setHoldings(initialHoldings);
     }
-  }, [initialSnapshots, initialPeriodId, periodId]);
+  }, [initialSnapshots, initialHoldings, initialPeriodId, periodId]);
 
   useEffect(() => {
     if (lastPeriodId.current === periodId) return;
@@ -205,6 +211,7 @@ export function StatementDataWorkspace({
     const res = await fetch(`/api/clients/${clientId}/portfolio?periodId=${nextId}`);
     const data = await res.json();
     setDraft(toDraft(data.snapshots ?? []));
+    setHoldings(data.holdings ?? []);
   }
 
   async function saveStatementData() {
@@ -484,6 +491,14 @@ export function StatementDataWorkspace({
           </table>
         </DashCardContent>
       </DashCard>
+
+      <PortfolioHoldingsEditor
+        clientId={clientId}
+        periodId={periodId || null}
+        holdings={holdings}
+        onSaved={setHoldings}
+        onMessage={setMessage}
+      />
 
       <DashCard>
         <DashCardHeader className="mb-0 flex-row items-center justify-between gap-3 space-y-0">

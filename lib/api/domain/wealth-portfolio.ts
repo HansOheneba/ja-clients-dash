@@ -30,8 +30,9 @@ export interface JaPortfolioSummary {
 
 export async function getJaPortfolioForClient(
   clientId: string = JOHN_DOE_CLIENT_ID,
+  periodsOverride?: Awaited<ReturnType<typeof getStatementPeriodsForClient>>,
 ): Promise<JaPortfolioSummary | null> {
-  const periods = await getStatementPeriodsForClient(clientId);
+  const periods = periodsOverride ?? (await getStatementPeriodsForClient(clientId));
   if (periods.length === 0) return null;
 
   const period = periods[0];

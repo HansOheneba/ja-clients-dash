@@ -5,6 +5,8 @@ import {
   OVERVIEW_BUCKETS,
   PERFORMANCE_BUCKETS,
 } from "@/lib/wealth/constants";
+import { buildHoldingsBreakdowns } from "@/lib/reports/build-holdings-breakdowns";
+import { computeReportTotalPages } from "@/lib/reports/pdf/report-theme";
 import type { InvestmentReportData } from "@/lib/reports/types";
 import type { PortfolioSnapshot, WealthTransaction } from "@/lib/wealth/types";
 import { formatCountryName, formatRegionName } from "@/lib/wealth/countries";
@@ -21,10 +23,11 @@ import {
   getClientAddress,
   getClientById,
   getPortfolioHistory,
+  getPortfolioHoldings,
   getPortfolioSnapshotsForPeriods,
   getStatementPeriod,
   getStatementPeriodsForClient,
-  getTransactionsForPeriod,
+  getTransactionsForClient,
 } from "@/lib/wealth/queries";
 import {
   ALL_REPORT_SECTIONS,
@@ -52,24 +55,6 @@ export function formatOrdinalDate(value: string | Date): string {
   const month = date.toLocaleDateString("en-GB", { month: "long" });
   const year = date.getFullYear();
   return `${day}${suffix} ${month} ${year}`;
-}
-
-// The statement note tells the client what the transaction list covers, so it has
-// to describe what was actually recorded rather than assume a single bucket.
-function describeTransactions(transactions: WealthTransaction[]): string | null {
-  if (transactions.length === 0) return null;
-
-  const buckets = new Set(transactions.map((t) => t.bucket));
-  const types = new Set(transactions.map((t) => t.transaction_type));
-  const [bucket] = [...buckets];
-
-  if (buckets.size === 1 && types.size === 1 && bucket) {
-    const label = BUCKET_LABELS[bucket];
-    const [type] = [...types];
-    return `Note: Showing ${label} ${type} transactions only for this statement period.`;
-  }
-
-  return "Note: Showing all transactions recorded during this statement period.";
 }
 
 function mapTransaction(t: WealthTransaction) {
@@ -141,13 +126,14 @@ export async function assembleInvestmentReportData(
   kind: ReportKind = "monthly",
   sections?: ReportSectionKey[] | null,
 ): Promise<InvestmentReportData> {
-  const [client, period, allPeriods, history, disclaimer, address] = await Promise.all([
+  const [client, period, allPeriods, history, disclaimer, address, holdings] = await Promise.all([
     getClientById(clientId),
     getStatementPeriod(periodId),
     getStatementPeriodsForClient(clientId),
     getPortfolioHistory(clientId),
     getActiveDisclaimer(),
     getClientAddress(clientId),
+    getPortfolioHoldings(clientId, periodId),
   ]);
 
   if (!client || !period) {
@@ -230,7 +216,8 @@ export async function assembleInvestmentReportData(
       color: BUCKET_COLORS[r.bucket],
     }));
 
-  const transactions = await getTransactionsForPeriod(clientId, window.start, window.end);
+  const recentTransactions = await getTransactionsForClient(clientId, 20);
+  const transactions = recentTransactions.filter((t) => t.occurred_on <= window.end);
   const txGroups = splitTransactions(transactions);
   const advisor = client.advisor_id ? await getAdvisorById(client.advisor_id) : null;
   const kindTitle = statementKindTitle(kind);
@@ -239,9 +226,10 @@ export async function assembleInvestmentReportData(
   );
   const historyForChart =
     inWindow.length >= 2 ? inWindow : history.filter((h) => h.recorded_on <= window.end);
+  const holdingsBreakdowns = buildHoldingsBreakdowns(holdings);
 
   return {
-    transactionsNote: describeTransactions(transactions),
+    transactionsNote: null,
     executiveSummary: buildExecutiveSummary(
       window.label,
       periodGainUsd,
@@ -262,8 +250,8 @@ export async function assembleInvestmentReportData(
     otherActivity: txGroups.otherActivity,
     clientName: client.full_name,
     clientNumber: client.client_number,
-    referenceCode: client.client_number,
-    reference: formatReportReference(client.client_number, kind, window.end),
+    referenceCode: client.reference_code,
+    reference: formatReportReference(client.reference_code, kind, window.end),
     preparedOn: formatOrdinalDate(preparedOn),
     reportKindTitle: kindTitle,
     statementPeriodLabel: window.label,
@@ -286,6 +274,7 @@ export async function assembleInvestmentReportData(
     overviewRows,
     performanceRows,
     allocationSlices,
+    holdingsBreakdowns,
     historyPoints: historyForChart.map((h) => ({
       date: h.recorded_on,
       valueUsd: h.total_value_usd,
@@ -295,6 +284,6 @@ export async function assembleInvestmentReportData(
       disclaimer?.title ?? "Important Notice Regarding Valuations & Performance",
     disclaimerBody: disclaimer?.body ?? "",
     includedSections,
-    totalPages: 2 + includedSections.length,
+    totalPages: computeReportTotalPages(holdingsBreakdowns.length),
   };
 }

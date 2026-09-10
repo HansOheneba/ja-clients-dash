@@ -9,6 +9,7 @@ import type {
   GoalStatus,
   PortfolioBucket,
   PortfolioHistoryPoint,
+  PortfolioHolding,
   PortfolioSnapshot,
   SessionProfile,
   StatementPeriod,
@@ -401,6 +402,86 @@ export async function getPortfolioSnapshotsForPeriods(
     [clientId, periodIds],
   );
   return rows.map(mapSnapshot);
+}
+
+function mapHolding(
+  row: PortfolioHolding & { original_value_usd: string | number; market_value_usd: string | number },
+): PortfolioHolding {
+  return {
+    ...row,
+    original_value_usd: Number(row.original_value_usd),
+    market_value_usd: Number(row.market_value_usd),
+  };
+}
+
+/** Period-specific rows win; otherwise client-level rows (period_id IS NULL) apply. */
+export async function getPortfolioHoldings(
+  clientId: string,
+  periodId: string,
+): Promise<PortfolioHolding[]> {
+  const rows = await queryDb<
+    PortfolioHolding & { original_value_usd: string; market_value_usd: string }
+  >(
+    `SELECT id, client_id, period_id, bucket, investment_name, ticker,
+            original_value_usd::float8, market_value_usd::float8, sort_order
+     FROM wealth.portfolio_holdings
+     WHERE client_id = $1
+       AND (period_id = $2 OR period_id IS NULL)
+     ORDER BY bucket, sort_order, investment_name`,
+    [clientId, periodId],
+  );
+
+  const periodSpecific = rows.filter((row) => row.period_id === periodId);
+  if (periodSpecific.length > 0) {
+    return periodSpecific.map(mapHolding);
+  }
+
+  return rows.filter((row) => row.period_id == null).map(mapHolding);
+}
+
+export async function replacePortfolioHoldings(
+  clientId: string,
+  periodId: string,
+  rows: Array<{
+    bucket: PortfolioBucket;
+    investment_name: string;
+    ticker: string;
+    original_value_usd: number;
+    market_value_usd: number;
+  }>,
+): Promise<PortfolioHolding[]> {
+  await queryDb(
+    `DELETE FROM wealth.portfolio_holdings WHERE client_id = $1 AND period_id = $2`,
+    [clientId, periodId],
+  );
+
+  const inserted: PortfolioHolding[] = [];
+  for (let index = 0; index < rows.length; index++) {
+    const row = rows[index];
+    const result = await queryDb<
+      PortfolioHolding & { original_value_usd: string; market_value_usd: string }
+    >(
+      `INSERT INTO wealth.portfolio_holdings (
+        client_id, period_id, bucket, investment_name, ticker,
+        original_value_usd, market_value_usd, sort_order
+      ) VALUES ($1, $2, $3::wealth.portfolio_bucket, $4, $5, $6, $7, $8)
+      RETURNING id, client_id, period_id, bucket, investment_name, ticker,
+                original_value_usd::float8, market_value_usd::float8, sort_order`,
+      [
+        clientId,
+        periodId,
+        row.bucket,
+        row.investment_name.trim(),
+        row.ticker.trim(),
+        row.original_value_usd,
+        row.market_value_usd,
+        index + 1,
+      ],
+    );
+    if (result[0]) inserted.push(mapHolding(result[0]));
+  }
+
+  return inserted;
 }
 
 export async function getPortfolioHistory(
