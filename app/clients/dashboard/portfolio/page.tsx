@@ -113,7 +113,7 @@ export default function ClientPortfolioPage() {
             <ClientEmptyState
               variant="allocation"
               title="No portfolio data yet"
-              description="Your wealth manager will set up your portfolios shortly. You will see allocation, performance, and activity here once they do."
+              description="Get in touch with us or your wealth manager and we will add your portfolios, allocation, performance, and activity here."
             />
           </DashCardContent>
         </DashCard>

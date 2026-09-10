@@ -28,7 +28,7 @@ function ClientGoalsView({ goals }: ClientGoalsViewProps) {
           <ClientEmptyState
             variant="goals"
             title="No goals yet"
-            description="Your wealth manager has not added goals yet. When they do, target amounts and dates will appear here."
+            description="Get in touch with us or your wealth manager to add goals. Target amounts and dates will appear here once they do."
           />
         </DashCardContent>
       </DashCard>

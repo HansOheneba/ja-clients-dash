@@ -1,5 +1,6 @@
 "use client";
 
+import { ClientContactActions } from "@/components/clients/client-contact-actions";
 import { useCurrency } from "@/lib/currency-context";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +48,25 @@ export function ClientOverviewHero({
       <p className="mt-2 text-xs text-[#b9c3d4]">
         {periodGainUsd >= 0 ? "Up" : "Down"} {format(Math.abs(periodGainUsd))} this period
       </p>
+    </div>
+  );
+}
+
+export function ClientOverviewEmptyHero() {
+  return (
+    <div className="rounded-2xl bg-[#0a1f3d] px-5 py-5 text-white sm:px-6 sm:py-6">
+      <p className="text-xs font-medium tracking-wide text-[#c9a227]">
+        TOTAL PORTFOLIO VALUE
+      </p>
+      <p className="mt-3 text-lg font-medium">Your portfolio is not set up yet</p>
+      <p className="mt-1 max-w-lg text-sm leading-relaxed text-[#b9c3d4]">
+        Get in touch with us or your wealth manager and we will add your holdings, values, and
+        performance here.
+      </p>
+      <ClientContactActions
+        className="mt-4"
+        primaryClassName="bg-[#c9a227] text-[#0a1f3d] hover:bg-[#c9a227]/90"
+      />
     </div>
   );
 }

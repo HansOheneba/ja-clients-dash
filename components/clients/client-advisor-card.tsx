@@ -37,7 +37,7 @@ export function ClientAdvisorCard({
           <ClientEmptyState
             variant="messages"
             title="No wealth manager assigned yet"
-            description="Your account is being set up. Someone from JA Wealth will assign your wealth manager shortly."
+            description="Get in touch with us and we will assign your wealth manager and get your account set up."
           />
         </DashCardContent>
       </DashCard>

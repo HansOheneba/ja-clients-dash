@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { ClientContactActions } from "@/components/clients/client-contact-actions";
 import { ClientEmptyState } from "@/components/ui/empty-state";
 import { buttonVariants } from "@/components/ui/button";
 import { TextSmall } from "@/components/ui/typography";
@@ -14,18 +15,24 @@ export function ClientPrimaryGoal({ goal }: { goal: Goal | null }) {
 
   if (!goal) {
     return (
-      <section>
+      <section className="flex h-full flex-col">
         <p className="mb-2 text-sm font-medium">Primary goal</p>
-        <div className="rounded-xl border border-border/40 bg-card">
+        <div className="flex flex-1 flex-col rounded-xl border border-border/40 bg-card">
           <ClientEmptyState
             variant="goals"
-            compact
+            layout="inline"
             title="No goals yet"
-            description="Your wealth manager will add goals to your plan shortly."
+            description="Get in touch with us or your wealth manager to add goals to your plan."
             action={
-              <Link href="/clients/dashboard/goals" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-                View My Plan
-              </Link>
+              <div className="flex flex-wrap gap-2">
+                <ClientContactActions />
+                <Link
+                  href="/clients/dashboard/goals"
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-8")}
+                >
+                  View My Plan
+                </Link>
+              </div>
             }
           />
         </div>
@@ -64,12 +71,16 @@ export function ClientLatestReport({
 }) {
   if (!report) {
     return (
-      <section>
+      <section className="flex h-full flex-col">
         <p className="mb-2 text-sm font-medium">Latest report</p>
-        <div className="rounded-xl border border-border/40 bg-card px-4 py-4">
-          <TextSmall className="text-muted-foreground">
-            Your wealth manager will publish statements here when ready.
-          </TextSmall>
+        <div className="flex flex-1 flex-col rounded-xl border border-border/40 bg-card">
+          <ClientEmptyState
+            variant="documents"
+            layout="inline"
+            title="No reports yet"
+            description="Get in touch with us or your wealth manager when you need a statement or report."
+            action={<ClientContactActions />}
+          />
         </div>
       </section>
     );

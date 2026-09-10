@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { MessageCircle } from "lucide-react";
 
-import { Button, buttonVariants } from "@/components/ui/button";
+import { ClientContactActions } from "@/components/clients/client-contact-actions";
+import { buttonVariants } from "@/components/ui/button";
 import { TextSmall } from "@/components/ui/typography";
 import type { DocumentRequest, WmSession } from "@/lib/wealth/wm-types";
 import { cn } from "@/lib/utils";
@@ -34,12 +35,23 @@ export function ClientAttentionCards({
         <div className="rounded-xl border border-border/40 bg-card px-4 py-4">
           <TextSmall className="text-muted-foreground">Next session</TextSmall>
           <p className="mt-1 text-sm font-medium">Not yet scheduled</p>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+            Get in touch with us or your wealth manager to book your first session.
+          </p>
           <Link
             href="/clients/dashboard/sessions"
             className={cn(buttonVariants({ size: "sm" }), "mt-3 h-8 bg-[#0a1f3d] text-white hover:bg-[#0a1f3d]/90")}
           >
             Request a session
           </Link>
+        </div>
+        <div className="rounded-xl border border-border/40 bg-card px-4 py-4">
+          <TextSmall className="text-muted-foreground">Need something added?</TextSmall>
+          <p className="mt-1 text-sm font-medium">We are here to help</p>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+            Portfolio, goals, documents, or anything else missing? Message us and we will sort it out.
+          </p>
+          <ClientContactActions className="mt-3" />
         </div>
       </div>
     );
@@ -65,6 +77,9 @@ export function ClientAttentionCards({
         ) : (
           <>
             <p className="mt-1 text-sm font-medium">Not yet scheduled</p>
+            <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+              Get in touch with us or your wealth manager to book a session.
+            </p>
             <Link
               href="/clients/dashboard/sessions"
               className={cn(buttonVariants({ size: "sm" }), "mt-3 h-8 bg-[#0a1f3d] text-white hover:bg-[#0a1f3d]/90")}

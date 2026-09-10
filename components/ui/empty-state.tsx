@@ -186,6 +186,7 @@ export function ClientEmptyState({
   action,
   className,
   compact,
+  layout = "center",
 }: {
   variant: EmptyStateVariant;
   title: string;
@@ -193,6 +194,7 @@ export function ClientEmptyState({
   action?: React.ReactNode;
   className?: string;
   compact?: boolean;
+  layout?: "center" | "inline";
 }) {
   const Mark =
     variant === "allocation"
@@ -207,16 +209,34 @@ export function ClientEmptyState({
               ? GoalMark
               : TrendMark;
 
+  if (layout === "inline") {
+    return (
+      <div
+        className={cn(
+          "flex items-start gap-4 px-4 py-4 text-left sm:items-center sm:px-5 sm:py-5",
+          className,
+        )}
+      >
+        <Mark className="size-10 shrink-0 sm:size-11" />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <TextSmall className="font-medium">{title}</TextSmall>
+          <Muted className="text-[13px] leading-relaxed">{description}</Muted>
+          {action ? <div className="mt-1">{action}</div> : null}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
         "flex flex-col items-center justify-center gap-3 px-6 text-center",
-        compact ? "py-6" : "min-h-[220px] py-10",
+        compact ? "py-8" : "min-h-[220px] py-10",
         className,
       )}
     >
       <Mark />
-      <div className="flex max-w-xs flex-col gap-1">
+      <div className="flex max-w-sm flex-col gap-1">
         <TextSmall className="font-medium">{title}</TextSmall>
         <Muted className="text-[13px] leading-relaxed">{description}</Muted>
       </div>

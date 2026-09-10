@@ -6,17 +6,15 @@ import {
   ClientAttentionCards,
   ClientUpdateNote,
 } from "@/components/clients/client-attention-cards";
-import { ClientOverviewHero } from "@/components/clients/client-overview-hero";
+import {
+  ClientOverviewEmptyHero,
+  ClientOverviewHero,
+} from "@/components/clients/client-overview-hero";
 import {
   ClientLatestReport,
   ClientPrimaryGoal,
 } from "@/components/clients/client-primary-goal";
 import { PageShell } from "@/components/layout/page-shell";
-import { ClientEmptyState } from "@/components/ui/empty-state";
-import {
-  DashCard,
-  DashCardContent,
-} from "@/components/ui/dash-card";
 import { Muted } from "@/components/ui/typography";
 import type { ClientOverviewData } from "@/lib/wealth/client-overview";
 
@@ -39,15 +37,17 @@ export default function ClientDashboardPage() {
   const firstName = overview?.clientName?.split(" ")[0] ?? "there";
 
   return (
-    <PageShell className="flex max-w-3xl flex-col gap-5">
+    <PageShell className="flex max-w-4xl flex-col gap-5">
       <header className="flex flex-col gap-1">
         <p className="text-sm text-muted-foreground">Welcome back, {firstName}</p>
         {overview?.portfolioLastUpdated ? (
           <Muted className="text-xs">Portfolio last updated {overview.portfolioLastUpdated}</Muted>
         ) : loading ? (
           <Muted className="text-xs">Loading your overview...</Muted>
-        ) : (
-          <Muted className="text-xs">Your wealth manager is setting up your portfolio</Muted>
+        ) : overview?.portfolio?.hasData ? null : (
+          <Muted className="text-xs">
+            Nothing loaded yet. Get in touch with us or your wealth manager to get started.
+          </Muted>
         )}
       </header>
 
@@ -64,16 +64,7 @@ export default function ClientDashboardPage() {
           periodGainUsd={overview.portfolio.periodGainUsd}
         />
       ) : (
-        <DashCard>
-          <DashCardContent>
-            <ClientEmptyState
-              variant="allocation"
-              compact
-              title="No portfolio data yet"
-              description="Your wealth manager will add your portfolio shortly. Values and performance will appear here once they do."
-            />
-          </DashCardContent>
-        </DashCard>
+        <ClientOverviewEmptyHero />
       )}
 
       {overview?.latestUpdate ? (
@@ -91,10 +82,10 @@ export default function ClientDashboardPage() {
       ) : null}
 
       {!loading && overview ? (
-        <>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <ClientPrimaryGoal goal={overview.primaryGoal} />
           <ClientLatestReport report={overview.latestReport} />
-        </>
+        </div>
       ) : null}
     </PageShell>
   );
