@@ -65,6 +65,7 @@ export function ClientOverviewEmptyHero() {
       </p>
       <ClientContactActions
         className="mt-4"
+        onDark
         primaryClassName="bg-[#c9a227] text-[#0a1f3d] hover:bg-[#c9a227]/90"
       />
     </div>

@@ -7,11 +7,13 @@ import { cn } from "@/lib/utils";
 type ClientContactActionsProps = {
   className?: string;
   primaryClassName?: string;
+  onDark?: boolean;
 };
 
 export function ClientContactActions({
   className,
   primaryClassName,
+  onDark = false,
 }: ClientContactActionsProps) {
   const { messages, advisor } = appConfig.routes.client;
 
@@ -29,7 +31,11 @@ export function ClientContactActions({
       </Link>
       <Link
         href={advisor}
-        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-8")}
+        className={cn(
+          buttonVariants({ variant: "outline", size: "sm" }),
+          "h-8",
+          onDark && "border-white/35 bg-transparent text-white hover:bg-white/10 hover:text-white",
+        )}
       >
         Your advisor
       </Link>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { ClientDashboardProvider } from "@/lib/client-dashboard-context";
 import { CurrencyProvider } from "@/lib/currency-context";
 import { clientNavItems } from "@/lib/client-navigation";
 import type { NavItem } from "@/lib/navigation";
@@ -74,17 +75,19 @@ export function ClientDashboardLayoutClient({
 
   return (
     <CurrencyProvider>
-      <DashboardShell
-        navItems={navItems}
-        basePath="/clients/dashboard"
-        accountLabel="Client account"
-        showCurrencyToggle
-        userName={name}
-        userInitials={initialsFrom(name)}
-        profileHref="/clients/dashboard/settings"
-      >
-        {children}
-      </DashboardShell>
+      <ClientDashboardProvider clientName={name}>
+        <DashboardShell
+          navItems={navItems}
+          basePath="/clients/dashboard"
+          accountLabel="Client account"
+          showCurrencyToggle
+          userName={name}
+          userInitials={initialsFrom(name)}
+          profileHref="/clients/dashboard/settings"
+        >
+          {children}
+        </DashboardShell>
+      </ClientDashboardProvider>
     </CurrencyProvider>
   );
 }
