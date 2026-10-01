@@ -1,14 +1,14 @@
-import { PageShell } from "@/components/layout/page-shell";
+import { AdvisorPageHeader, advisorSurface } from "@/components/advisors/advisor-surface";
 import { MessagesWorkspace } from "@/components/advisors/messages-workspace";
-import { H1, Muted } from "@/components/ui/typography";
+import { PageShell } from "@/components/layout/page-shell";
 
 export default function AdvisorMessagesPage() {
   return (
-    <PageShell className="flex flex-col gap-(--spacing-section)">
-      <header className="flex flex-col gap-1">
-        <H1>Messages</H1>
-        <Muted>Client communication threads, unread first</Muted>
-      </header>
+    <PageShell className={advisorSurface.pageGap}>
+      <AdvisorPageHeader
+        title="Messages"
+        description="Client communication threads, unread first"
+      />
       <MessagesWorkspace />
     </PageShell>
   );

@@ -2,14 +2,15 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 import { numericVariants } from "@/components/ui/typography";
+import { advisorSurface } from "@/components/advisors/advisor-surface";
 
 const dashCardVariants = cva(
-  "flex w-full min-w-0 flex-col rounded-(--radius-card) border border-border/60 bg-card text-card-foreground",
+  cn(advisorSurface.card, "flex w-full min-w-0 flex-col text-card-foreground"),
   {
     variants: {
       padding: {
-        default: "p-6",
-        sm: "p-4",
+        default: advisorSurface.cardPadding,
+        sm: "p-3",
         none: "p-0",
       },
       span: {
@@ -22,7 +23,7 @@ const dashCardVariants = cva(
       padding: "default",
       span: "default",
     },
-  }
+  },
 );
 
 function DashCard({
@@ -47,7 +48,7 @@ function DashCardHeader({
   return (
     <div
       data-slot="dash-card-header"
-      className={cn("mb-4 flex items-start justify-between gap-4", className)}
+      className={cn("mb-3 flex items-start justify-between gap-3", className)}
       {...props}
     />
   );
@@ -60,7 +61,7 @@ function DashCardTitle({
   return (
     <h3
       data-slot="dash-card-title"
-      className={cn("font-subheading text-h4 font-semibold text-foreground", className)}
+      className={cn(advisorSurface.sectionTitle, className)}
       {...props}
     />
   );
@@ -73,7 +74,7 @@ function DashCardDescription({
   return (
     <p
       data-slot="dash-card-description"
-      className={cn("mt-0.5 text-body-sm text-muted-foreground", className)}
+      className={cn("mt-0.5 text-[12px] text-muted-foreground", className)}
       {...props}
     />
   );
@@ -99,7 +100,11 @@ function DashCardMetric({
   return (
     <p
       data-slot="dash-card-metric"
-      className={cn(numericVariants(), className)}
+      className={cn(
+        numericVariants(),
+        "text-[1.3rem] font-semibold sm:text-[1.4rem]",
+        className,
+      )}
       {...props}
     />
   );

@@ -1,6 +1,7 @@
-import { PageShell } from "@/components/layout/page-shell";
+import { AdvisorPageHeader, advisorSurface } from "@/components/advisors/advisor-surface";
 import { AdvisorSettingsForm } from "@/components/advisors/advisor-settings-form";
-import { H1, Muted } from "@/components/ui/typography";
+import { PageShell } from "@/components/layout/page-shell";
+import { Muted } from "@/components/ui/typography";
 import { getAdvisorById } from "@/lib/wealth/queries";
 import { requireAdvisor } from "@/lib/wealth/session";
 
@@ -11,11 +12,11 @@ export default async function AdvisorSettingsPage() {
     : null;
 
   return (
-    <PageShell className="flex flex-col gap-(--spacing-section)">
-      <header className="flex flex-col gap-1">
-        <H1>Settings</H1>
-        <Muted>Correct your name or the hours clients can request a session.</Muted>
-      </header>
+    <PageShell className={advisorSurface.pageGap}>
+      <AdvisorPageHeader
+        title="Settings"
+        description="Correct your name or the hours clients can request a session."
+      />
 
       {advisor ? (
         <AdvisorSettingsForm

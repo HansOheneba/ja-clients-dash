@@ -91,7 +91,7 @@ export function SessionsWorkspace() {
   return (
     <div
       className={cn(
-        "flex flex-col gap-8 transition-opacity",
+        "flex flex-col gap-4 transition-opacity",
         loading && "pointer-events-none opacity-45",
       )}
     >

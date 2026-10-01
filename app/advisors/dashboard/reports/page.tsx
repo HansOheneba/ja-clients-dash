@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from "react";
 
+import {
+  AdvisorPageHeader,
+  SurfaceCard,
+  advisorSurface,
+} from "@/components/advisors/advisor-surface";
 import { PageShell } from "@/components/layout/page-shell";
 import { AdvisorReportsList } from "@/components/reports/advisor-reports-list";
 import { GenerateReportButton } from "@/components/reports/generate-report-button";
@@ -9,7 +14,7 @@ import { GenerateReportsGuide } from "@/components/reports/generate-reports-guid
 import { OutstandingReportsNotice } from "@/components/reports/outstanding-reports-notice";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { H1, Muted, TextSmall } from "@/components/ui/typography";
+import { Muted, TextSmall } from "@/components/ui/typography";
 
 export default function AdvisorReportsPage() {
   const [clientOptions, setClientOptions] = useState<{ id: string; name: string }[]>([]);
@@ -30,26 +35,23 @@ export default function AdvisorReportsPage() {
   }, []);
 
   return (
-    <PageShell className="flex flex-col gap-5">
-      <header className="flex flex-col gap-1">
-        <H1>Reports</H1>
-        <Muted>
-          Reports are created only when you click Generate. That PDF then appears in the
-          client portal.
-        </Muted>
-      </header>
+    <PageShell className={advisorSurface.pageGap}>
+      <AdvisorPageHeader
+        title="Reports"
+        description="Reports are created only when you click Generate. That PDF then appears in the client portal."
+      />
 
       <OutstandingReportsNotice />
 
-      <div className="flex flex-col gap-4 rounded-(--radius-card) border border-border/60 bg-card p-5">
-        <div>
+      <SurfaceCard>
+        <div className="mb-3">
           <TextSmall className="font-semibold">Generate a statement</TextSmall>
-          <Muted className="text-sm">
+          <Muted className="text-[12px]">
             Choose a client, then generate. Nothing is sent to their portal until you do.
           </Muted>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="min-w-[16rem] flex-1">
+          <div className="min-w-64 flex-1">
             <Label htmlFor="report-client">Client</Label>
             <Select
               id="report-client"
@@ -66,7 +68,7 @@ export default function AdvisorReportsPage() {
           </div>
           <GenerateReportButton clientId={clientId} />
         </div>
-      </div>
+      </SurfaceCard>
 
       <GenerateReportsGuide />
       <AdvisorReportsList />

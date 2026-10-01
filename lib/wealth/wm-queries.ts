@@ -1,9 +1,14 @@
 import { queryDb } from "@/lib/supabase/db";
 import { isReportKind, statementKindTitle } from "@/lib/wealth/period-calendar";
 import type { PortfolioBucket } from "@/lib/wealth/types";
+import { BUCKET_LABELS } from "@/lib/wealth/constants";
 import type {
+  AttentionGroup,
   AttentionItem,
   AuditLogEntry,
+  BookActivityItem,
+  BookAllocationSlice,
+  BookAumHistoryPoint,
   ClientAdvisorNote,
   ClientInternalDocument,
   ClientListExtended,
@@ -18,6 +23,14 @@ import type {
   WmSession,
   WmSessionStatus,
 } from "@/lib/wealth/wm-types";
+
+const BUCKET_SHORT_LABELS: Record<PortfolioBucket, string> = {
+  income: "Income",
+  growth: "Growth",
+  venture: "Venture",
+  treasury: "Treasury",
+  coa: "Cash On Account",
+};
 
 export async function insertAuditLog(row: {
   actorId?: string | null;
@@ -1173,4 +1186,284 @@ export async function getClientUnreadMessageCount(clientId: string): Promise<num
     [clientId],
   );
   return Number(rows[0]?.count ?? 0);
+}
+
+/** Aggregate portfolio history across an advisor's book by recorded date. */
+export async function getBookAumHistory(
+  advisorId?: string | null,
+): Promise<BookAumHistoryPoint[]> {
+  // Month-end forward-fill so each point reflects the full book, not only
+  // clients that share an identical history stamp.
+  const rows = await queryDb<{ recorded_on: string; total: string }>(
+    `WITH scoped_clients AS (
+       SELECT id
+       FROM wealth.clients
+       WHERE ($1::uuid IS NULL OR advisor_id = $1)
+     ),
+     months AS (
+       SELECT DISTINCT date_trunc('month', h.recorded_on)::date AS month_start
+       FROM wealth.portfolio_history h
+       JOIN scoped_clients c ON c.id = h.client_id
+     ),
+     filled AS (
+       SELECT
+         m.month_start,
+         c.id AS client_id,
+         (
+           SELECT h.total_value_usd
+           FROM wealth.portfolio_history h
+           WHERE h.client_id = c.id
+             AND h.recorded_on < (m.month_start + interval '1 month')
+           ORDER BY h.recorded_on DESC
+           LIMIT 1
+         ) AS value
+       FROM months m
+       CROSS JOIN scoped_clients c
+     )
+     SELECT month_start::text AS recorded_on, COALESCE(SUM(value), 0)::float8 AS total
+     FROM filled
+     GROUP BY month_start
+     ORDER BY month_start ASC`,
+    [advisorId ?? null],
+  );
+  return rows.map((r) => {
+    const recordedOn = r.recorded_on;
+    return {
+      recordedOn,
+      month: new Date(`${recordedOn.slice(0, 10)}T12:00:00`).toLocaleDateString(
+        "en-GB",
+        {
+          month: "short",
+          year: "2-digit",
+        },
+      ),
+      value: Number(r.total),
+    };
+  });
+}
+
+/** Latest statement allocation rolled up across the book by portfolio bucket. */
+export async function getBookAllocation(
+  advisorId?: string | null,
+): Promise<BookAllocationSlice[]> {
+  const rows = await queryDb<{ bucket: PortfolioBucket; value: string }>(
+    `WITH latest_period AS (
+       SELECT DISTINCT ON (client_id) id, client_id
+       FROM wealth.statement_periods
+       ORDER BY client_id, period_end DESC
+     )
+     SELECT ps.bucket, COALESCE(SUM(ps.current_value_usd), 0)::float8 AS value
+     FROM wealth.portfolio_snapshots ps
+     JOIN latest_period lp ON lp.id = ps.period_id AND lp.client_id = ps.client_id
+     JOIN wealth.clients c ON c.id = ps.client_id
+     WHERE ($1::uuid IS NULL OR c.advisor_id = $1)
+     GROUP BY ps.bucket`,
+    [advisorId ?? null],
+  );
+
+  const byBucket = new Map(rows.map((r) => [r.bucket, Number(r.value)]));
+  const total = [...byBucket.values()].reduce((sum, v) => sum + v, 0);
+  const order: PortfolioBucket[] = ["income", "growth", "venture", "treasury", "coa"];
+
+  return order.map((bucket) => {
+    const value = byBucket.get(bucket) ?? 0;
+    return {
+      bucket,
+      label: BUCKET_LABELS[bucket],
+      shortLabel: BUCKET_SHORT_LABELS[bucket],
+      value,
+      pct: total > 0 ? (value / total) * 100 : 0,
+    };
+  });
+}
+
+/** Dominant portfolio bucket per client (largest current value on latest statement). */
+export async function getClientPrimaryBuckets(
+  advisorId?: string | null,
+): Promise<Map<string, PortfolioBucket>> {
+  const rows = await queryDb<{ client_id: string; bucket: PortfolioBucket }>(
+    `WITH latest_period AS (
+       SELECT DISTINCT ON (client_id) id, client_id
+       FROM wealth.statement_periods
+       ORDER BY client_id, period_end DESC
+     ),
+     ranked AS (
+       SELECT ps.client_id, ps.bucket,
+         ROW_NUMBER() OVER (
+           PARTITION BY ps.client_id
+           ORDER BY ps.current_value_usd DESC, ps.bucket ASC
+         ) AS rn
+       FROM wealth.portfolio_snapshots ps
+       JOIN latest_period lp ON lp.id = ps.period_id AND lp.client_id = ps.client_id
+       JOIN wealth.clients c ON c.id = ps.client_id
+       WHERE ($1::uuid IS NULL OR c.advisor_id = $1)
+     )
+     SELECT client_id, bucket FROM ranked WHERE rn = 1`,
+    [advisorId ?? null],
+  );
+  return new Map(rows.map((r) => [r.client_id, r.bucket]));
+}
+
+/** Upcoming confirmed sessions for the advisor book. */
+export async function listUpcomingSessions(
+  advisorId?: string | null,
+  limit = 5,
+): Promise<WmSession[]> {
+  const rows = await queryDb<WmSession & { client_name: string }>(
+    `SELECT s.id, s.client_id, s.advisor_id, s.session_request_id,
+            s.title, s.scheduled_at::text, s.status::text, s.format,
+            s.recap_topics, s.recap_decisions, s.recap_action_items, s.recap_next_steps,
+            s.recap_logged_at::text, s.created_at::text,
+            c.full_name AS client_name
+     FROM wealth.sessions s
+     JOIN wealth.clients c ON c.id = s.client_id
+     WHERE s.scheduled_at >= now()
+       AND s.status = 'confirmed'
+       AND ($1::uuid IS NULL OR s.advisor_id = $1)
+     ORDER BY s.scheduled_at ASC
+     LIMIT $2`,
+    [advisorId ?? null, limit],
+  );
+  return rows.map((r) => ({
+    ...r,
+    status: r.status as WmSessionStatus,
+    recap_topics: r.recap_topics ?? [],
+    recap_decisions: r.recap_decisions ?? [],
+    recap_action_items: r.recap_action_items ?? [],
+    recap_next_steps: r.recap_next_steps ?? [],
+  }));
+}
+
+/** Recent client update events across the advisor book. */
+export async function listRecentBookActivity(
+  advisorId?: string | null,
+  limit = 8,
+): Promise<BookActivityItem[]> {
+  const rows = await queryDb<{
+    id: string;
+    client_id: string;
+    client_name: string;
+    kind: string;
+    title: string;
+    created_at: string;
+  }>(
+    `SELECT u.id, u.client_id, c.full_name AS client_name,
+            u.kind::text, u.title, u.created_at::text
+     FROM wealth.client_updates u
+     JOIN wealth.clients c ON c.id = u.client_id
+     WHERE ($1::uuid IS NULL OR c.advisor_id = $1)
+     ORDER BY u.created_at DESC
+     LIMIT $2`,
+    [advisorId ?? null, limit],
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    clientId: r.client_id,
+    clientName: r.client_name,
+    kind: r.kind,
+    title: r.title,
+    createdAt: r.created_at,
+  }));
+}
+
+/** Group identical attention items so the overview stays scannable. */
+export function aggregateAttentionGroups(
+  items: AttentionItem[],
+  outstanding: OutstandingReport[],
+): AttentionGroup[] {
+  const groups: AttentionGroup[] = [];
+
+  const byKind = {
+    monthly: outstanding.filter((r) => r.kind === "monthly").length,
+    quarterly: outstanding.filter((r) => r.kind === "quarterly").length,
+    annual: outstanding.filter((r) => r.kind === "annual").length,
+  };
+  if (byKind.monthly > 0) {
+    groups.push({
+      key: "monthly-statements",
+      label: "Monthly statements",
+      count: byKind.monthly,
+      href: "/advisors/dashboard/reports",
+      urgent: false,
+    });
+  }
+  if (byKind.quarterly > 0) {
+    groups.push({
+      key: "quarterly-statements",
+      label: "Quarterly statements",
+      count: byKind.quarterly,
+      href: "/advisors/dashboard/reports",
+      urgent: false,
+    });
+  }
+  if (byKind.annual > 0) {
+    groups.push({
+      key: "annual-statements",
+      label: "Annual statements",
+      count: byKind.annual,
+      href: "/advisors/dashboard/reports",
+      urgent: false,
+    });
+  }
+
+  const reviews = items.filter((i) => i.type === "review_due");
+  if (reviews.length > 0) {
+    groups.push({
+      key: "reviews",
+      label: "Client reviews due",
+      count: reviews.length,
+      href: "/advisors/dashboard/clients",
+      urgent: true,
+    });
+  }
+
+  const sessionRequests = items.filter((i) => i.type === "session_request");
+  if (sessionRequests.length > 0) {
+    groups.push({
+      key: "session-requests",
+      label: "Session requests",
+      count: sessionRequests.length,
+      href: "/advisors/dashboard/sessions",
+      urgent: false,
+    });
+  }
+
+  const recaps = items.filter((i) => i.type === "recap_backlog");
+  if (recaps.length > 0) {
+    groups.push({
+      key: "recaps",
+      label: "Session recaps needed",
+      count: recaps.length,
+      href: "/advisors/dashboard/sessions",
+      urgent: false,
+    });
+  }
+
+  const docs = items.filter((i) => i.type === "document_request" || i.type === "document_expiry");
+  if (docs.length > 0) {
+    groups.push({
+      key: "documents",
+      label: "Document follow-ups",
+      count: docs.length,
+      href: "/advisors/dashboard/documents",
+      urgent: false,
+    });
+  }
+
+  const messages = items.filter((i) => i.type === "message");
+  if (messages.length > 0) {
+    const count = messages.reduce((sum, item) => {
+      const match = item.title.match(/^(\d+)/);
+      return sum + (match ? Number(match[1]) : 1);
+    }, 0);
+    groups.push({
+      key: "messages",
+      label: "Unread client messages",
+      count,
+      href: "/advisors/dashboard/messages",
+      urgent: false,
+    });
+  }
+
+  return groups;
 }

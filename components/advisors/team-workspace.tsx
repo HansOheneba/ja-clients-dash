@@ -284,7 +284,7 @@ export function TeamWorkspace({
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-(--spacing-section)">
+      <div className="flex flex-col gap-4">
         <KpiStrip>
           <KpiItem label="Active advisors" value="" loading />
           <KpiItem label="Admins" value="" loading />
@@ -307,7 +307,7 @@ export function TeamWorkspace({
   }
 
   return (
-    <div className="flex flex-col gap-(--spacing-section)">
+    <div className="flex flex-col gap-4">
       <KpiStrip>
         <KpiItem
           label="Active advisors"

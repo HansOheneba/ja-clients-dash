@@ -178,6 +178,37 @@ export interface ClientListExtended {
   has_open_request: boolean;
 }
 
+export type BookAumHistoryPoint = {
+  recordedOn: string;
+  month: string;
+  value: number;
+};
+
+export type BookAllocationSlice = {
+  bucket: PortfolioBucket;
+  label: string;
+  shortLabel: string;
+  value: number;
+  pct: number;
+};
+
+export type BookActivityItem = {
+  id: string;
+  clientId: string;
+  clientName: string;
+  kind: string;
+  title: string;
+  createdAt: string;
+};
+
+export type AttentionGroup = {
+  key: string;
+  label: string;
+  count: number;
+  href: string;
+  urgent: boolean;
+};
+
 export type ReportSectionKey =
   | "executive_summary"
   | "portfolio_overview"

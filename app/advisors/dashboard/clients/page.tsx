@@ -1,11 +1,19 @@
 import Link from "next/link";
-import { UserPlus } from "lucide-react";
+import {
+  AlertTriangle,
+  Landmark,
+  UserPlus,
+  Users,
+} from "lucide-react";
 
+import {
+  AdvisorPageHeader,
+  MetricCard,
+  advisorPrimaryAction,
+  advisorSurface,
+} from "@/components/advisors/advisor-surface";
 import { ClientsRosterWorkspace } from "@/components/advisors/clients-roster-workspace";
-import { SectionLabel } from "@/components/advisors/section-label";
 import { PageShell } from "@/components/layout/page-shell";
-import { buttonVariants } from "@/components/ui/button";
-import { H1, Muted } from "@/components/ui/typography";
 import { listAdvisorsWithStats } from "@/lib/wealth/queries";
 import { listClientsExtended, listOutstandingReports } from "@/lib/wealth/wm-queries";
 import { requireAdvisor } from "@/lib/wealth/session";
@@ -25,47 +33,50 @@ export default async function AdvisorClientsPage() {
   const onboarding = clients.filter((c) => c.status === "onboarding").length;
 
   return (
-    <PageShell className="flex flex-col gap-8">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-col gap-1">
-          <H1>Clients</H1>
-          <Muted>
-            {clients.length} in your book. Who they are, where they stand, and what needs attention.
-          </Muted>
-        </div>
-        <Link
-          href="/advisors/dashboard/clients/new"
-          className={buttonVariants({ size: "sm" })}
-        >
-          <UserPlus className="size-4" />
-          Add client
-        </Link>
-      </header>
+    <PageShell className={advisorSurface.pageGap}>
+      <AdvisorPageHeader
+        title="Clients"
+        description={`${clients.length} in your book. Who they are, where they stand, and what needs attention.`}
+        actions={
+          <Link href="/advisors/dashboard/clients/new" className={advisorPrimaryAction()}>
+            <UserPlus className="size-3.5" />
+            Add client
+          </Link>
+        }
+      />
 
-      <section className="flex flex-col gap-3">
-        <SectionLabel>Book snapshot</SectionLabel>
-        <div className="grid grid-cols-2 divide-y divide-border/70 overflow-hidden rounded-(--radius-card) border border-border/60 bg-card sm:grid-cols-4 sm:divide-x sm:divide-y-0">
-          <SnapshotCell
-            label="Total AUM"
-            value={formatUsd(totalAum)}
-            hint={`${clients.length} clients`}
-          />
-          <SnapshotCell
-            label="Active"
-            value={String(activeCount)}
-            hint="No action needed"
-          />
-          <SnapshotCell
-            label="Review due"
-            value={String(reviewDue)}
-            hint={reviewDue > 0 ? "Requires attention" : "None waiting"}
-          />
-          <SnapshotCell
-            label="Onboarding"
-            value={String(onboarding)}
-            hint={onboarding > 0 ? "Setup still in progress" : "All set up"}
-          />
-        </div>
+      <section
+        aria-label="Book snapshot"
+        className="grid grid-cols-2 gap-2.5 xl:grid-cols-4"
+      >
+        <MetricCard
+          label="Total AUM"
+          value={formatUsd(totalAum)}
+          detail={`${clients.length} clients`}
+          tone="navy"
+          icon={<Landmark className="size-3.5" />}
+        />
+        <MetricCard
+          label="Active"
+          value={String(activeCount)}
+          detail="No action needed"
+          tone="sage"
+          icon={<Users className="size-3.5" />}
+        />
+        <MetricCard
+          label="Review due"
+          value={String(reviewDue)}
+          detail={reviewDue > 0 ? "Requires attention" : "None waiting"}
+          tone="warm"
+          icon={<AlertTriangle className="size-3.5" />}
+        />
+        <MetricCard
+          label="Onboarding"
+          value={String(onboarding)}
+          detail={onboarding > 0 ? "Setup still in progress" : "All set up"}
+          tone="gold"
+          icon={<UserPlus className="size-3.5" />}
+        />
       </section>
 
       <ClientsRosterWorkspace
@@ -74,25 +85,5 @@ export default async function AdvisorClientsPage() {
         reportsDueCount={new Set(outstanding.map((row) => row.clientId)).size}
       />
     </PageShell>
-  );
-}
-
-function SnapshotCell({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1 px-5 py-4">
-      <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-        {label}
-      </p>
-      <p className="text-lg font-bold tabular-nums tracking-tight">{value}</p>
-      <p className="text-[11px] text-muted-foreground">{hint}</p>
-    </div>
   );
 }

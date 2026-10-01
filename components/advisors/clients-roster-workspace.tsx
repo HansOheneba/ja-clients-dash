@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronRight, Search } from "lucide-react";
 
 import { SectionLabel } from "@/components/advisors/section-label";
+import { SurfaceCard, advisorSurface } from "@/components/advisors/advisor-surface";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -136,10 +137,10 @@ export function ClientsRosterWorkspace({
   return (
     <section className="flex flex-col gap-4">
       {attentionOnboarding + attentionReview + reportsDueCount > 0 && statusFilter === "all" ? (
-        <div className="flex flex-col gap-2 rounded-(--radius-card) border border-border/60 bg-card px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <SurfaceCard tint="bg-[#fff8f0]" className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <TextSmall className="font-medium">Needs attention</TextSmall>
-            <Muted className="text-[13px]">
+            <Muted className="text-[12px]">
               {[
                 attentionOnboarding > 0 ? `${attentionOnboarding} still onboarding` : null,
                 attentionReview > 0 ? `${attentionReview} review due` : null,
@@ -152,27 +153,27 @@ export function ClientsRosterWorkspace({
               .
             </Muted>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {attentionOnboarding > 0 ? (
-              <Button size="sm" variant="outline" onClick={() => setStatusFilter("onboarding")}>
+              <Button size="xs" variant="outline" onClick={() => setStatusFilter("onboarding")}>
                 View onboarding
               </Button>
             ) : null}
             {attentionReview > 0 ? (
-              <Button size="sm" variant="outline" onClick={() => setStatusFilter("review_due")}>
+              <Button size="xs" variant="outline" onClick={() => setStatusFilter("review_due")}>
                 View reviews
               </Button>
             ) : null}
             {reportsDueCount > 0 ? (
               <Link
                 href="/advisors/dashboard/reports"
-                className={buttonVariants({ size: "sm", variant: "outline" })}
+                className={buttonVariants({ size: "xs", variant: "outline" })}
               >
                 View reports
               </Link>
             ) : null}
           </div>
-        </div>
+        </SurfaceCard>
       ) : null}
 
       <div className="flex flex-col gap-3">
@@ -241,7 +242,7 @@ export function ClientsRosterWorkspace({
       </div>
 
       {selected.size > 0 ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-(--radius-card) border border-border/60 bg-card px-4 py-2.5">
+        <SurfaceCard className="flex flex-wrap items-center gap-2 py-2.5">
           <TextSmall className="font-medium">{selected.size} selected</TextSmall>
           <Select
             value={bulkAdvisorId}
@@ -256,20 +257,20 @@ export function ClientsRosterWorkspace({
             ))}
           </Select>
           <Button
-            size="sm"
+            size="xs"
             disabled={bulkLoading || !bulkAdvisorId}
             onClick={bulkAssign}
           >
             Assign manager
           </Button>
-          <Button size="sm" variant="outline" disabled={bulkLoading} onClick={tagForReview}>
+          <Button size="xs" variant="outline" disabled={bulkLoading} onClick={tagForReview}>
             Tag for review
           </Button>
-        </div>
+        </SurfaceCard>
       ) : null}
 
-      <div className="overflow-hidden rounded-(--radius-card) border border-border/60 bg-card">
-        <div className="hidden items-center gap-3 border-b border-border/60 px-4 py-2 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground lg:grid lg:grid-cols-[auto_minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,1fr)_auto]">
+      <div className={cn(advisorSurface.card, "overflow-hidden")}>
+        <div className="hidden items-center gap-3 border-b border-border/60 bg-[#f7f6f3] px-4 py-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground lg:grid lg:grid-cols-[auto_minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,1fr)_auto]">
           <input
             type="checkbox"
             checked={selected.size === filtered.length && filtered.length > 0}
@@ -295,7 +296,7 @@ export function ClientsRosterWorkspace({
             return (
               <div
                 key={client.id}
-                className="flex items-center gap-3 border-b border-border/50 px-4 py-3.5 last:border-0 transition-colors duration-150 hover:bg-muted/30 lg:grid lg:grid-cols-[auto_minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,1fr)_auto]"
+                className="flex items-center gap-3 border-b border-border/50 px-4 py-2.5 last:border-0 transition-colors duration-150 hover:bg-[#faf9f6] lg:grid lg:grid-cols-[auto_minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,1fr)_auto]"
               >
                 <input
                   type="checkbox"

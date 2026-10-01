@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Overline } from "@/components/ui/typography";
+import { advisorSurface } from "@/components/advisors/advisor-surface";
 
 export function SectionLabel({
   children,
@@ -12,9 +12,9 @@ export function SectionLabel({
 }) {
   return (
     <div className={cn("flex items-end justify-between gap-3", className)}>
-      <Overline className="tracking-[0.14em] text-muted-foreground/80">
+      <h3 className={cn(advisorSurface.sectionTitle, "text-[0.95rem]")}>
         {children}
-      </Overline>
+      </h3>
       {action}
     </div>
   );

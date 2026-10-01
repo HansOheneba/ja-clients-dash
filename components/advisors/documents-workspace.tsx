@@ -2,10 +2,14 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { FileWarning, Loader2 } from "lucide-react";
 
+import {
+  AdvisorSectionHeader,
+  SurfaceCard,
+} from "@/components/advisors/advisor-surface";
 import { Badge } from "@/components/ui/badge";
-import { H3, Muted, TextSmall } from "@/components/ui/typography";
+import { Muted, TextSmall } from "@/components/ui/typography";
 import type { DocumentRequest, VaultDocument } from "@/lib/wealth/wm-types";
 
 export function DocumentsWorkspace() {
@@ -32,57 +36,73 @@ export function DocumentsWorkspace() {
   if (loading) {
     return (
       <div className="flex justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <section>
-        <H3 className="mb-3 text-base">Outstanding requests</H3>
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <SurfaceCard>
+        <AdvisorSectionHeader
+          title="Outstanding requests"
+          subtitle="Documents clients still need to upload"
+          className="mb-3"
+        />
         {requests.length === 0 ? (
-          <Muted>No outstanding document requests.</Muted>
+          <div className="rounded-lg bg-[#f7f1e8] px-3 py-3.5">
+            <Muted className="text-[12px]">No outstanding document requests.</Muted>
+          </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border">
-            {requests.map((r, i) => (
-              <div
+          <div className="flex flex-col gap-1.5">
+            {requests.map((r) => (
+              <Link
                 key={r.id}
-                className={`flex items-center justify-between px-4 py-3 ${i < requests.length - 1 ? "border-b border-border/60" : ""}`}
+                href={`/advisors/dashboard/clients/${r.client_id}?tab=Documents`}
+                className="flex items-center justify-between gap-3 rounded-lg bg-[#f7f1e8] px-2.5 py-2 transition-opacity hover:opacity-90"
               >
-                <div>
-                  <Link
-                    href={`/advisors/dashboard/clients/${r.client_id}?tab=Documents`}
-                    className="font-medium hover:underline"
-                  >
-                    {r.client_name}
-                  </Link>
-                  <Muted className="text-sm">{r.title}</Muted>
+                <div className="min-w-0">
+                  <TextSmall className="text-[12px] font-medium">{r.client_name}</TextSmall>
+                  <Muted className="text-[11px]">{r.title}</Muted>
                 </div>
-                <Muted className="text-sm">
+                <Muted className="shrink-0 text-[11px]">
                   {r.due_date
                     ? new Date(`${r.due_date}T12:00:00`).toLocaleDateString("en-GB")
                     : "No due date"}
                 </Muted>
-              </div>
+              </Link>
             ))}
           </div>
         )}
-      </section>
+      </SurfaceCard>
 
-      <section>
-        <H3 className="mb-3 text-base">Expiring documents (30 days)</H3>
+      <SurfaceCard>
+        <AdvisorSectionHeader
+          title="Expiring documents"
+          subtitle="KYC and vault items in the next 30 days"
+          className="mb-3"
+          action={
+            <span className="flex size-6 items-center justify-center rounded-md bg-[#c45c57]/12 text-[#a34844]">
+              <FileWarning className="size-3.5" />
+            </span>
+          }
+        />
         {expiring.length === 0 ? (
-          <Muted>No documents expiring soon.</Muted>
+          <div className="rounded-lg bg-[#f8efe9] px-3 py-3.5">
+            <Muted className="text-[12px]">No documents expiring soon.</Muted>
+          </div>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             {expiring.map((d) => (
-              <div key={d.id} className="flex items-center justify-between rounded-xl border border-border p-4">
-                <div>
-                  <TextSmall className="font-medium">{d.title}</TextSmall>
-                  <Muted className="text-sm">{d.client_name}</Muted>
+              <div
+                key={d.id}
+                className="flex items-center justify-between gap-3 rounded-lg bg-[#f8efe9] px-2.5 py-2"
+              >
+                <div className="min-w-0">
+                  <TextSmall className="text-[12px] font-medium">{d.title}</TextSmall>
+                  <Muted className="text-[11px]">{d.client_name}</Muted>
                 </div>
-                <Badge variant="outline">
+                <Badge variant="outline" className="text-[10px]">
                   {d.expires_on
                     ? new Date(`${d.expires_on}T12:00:00`).toLocaleDateString("en-GB")
                     : "N/A"}
@@ -91,7 +111,7 @@ export function DocumentsWorkspace() {
             ))}
           </div>
         )}
-      </section>
+      </SurfaceCard>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { DesignedEmptyState } from "@/components/advisors/designed-empty-state";
+import { SurfaceCard, advisorSurface } from "@/components/advisors/advisor-surface";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -45,9 +46,9 @@ export function MessagesWorkspace() {
 
   if (loading) {
     return (
-      <div className="grid min-h-[480px] grid-cols-1 gap-4 opacity-45 lg:grid-cols-[280px_1fr]">
-        <div className="rounded-xl border border-border bg-muted/25" />
-        <div className="rounded-xl border border-border bg-muted/25" />
+      <div className="grid min-h-[420px] grid-cols-1 gap-3 opacity-45 lg:grid-cols-[260px_1fr]">
+        <div className={cn(advisorSurface.card, "bg-muted/25")} />
+        <div className={cn(advisorSurface.card, "bg-muted/25")} />
       </div>
     );
   }
@@ -59,26 +60,26 @@ export function MessagesWorkspace() {
         title="No conversations yet"
         description="Start a conversation from a client's profile. Messages appear here for clients assigned to you."
         action={
-          <Link href="/advisors/dashboard/clients" className={buttonVariants({ size: "sm" })}>
+          <Link href="/advisors/dashboard/clients" className={buttonVariants({ size: "xs" })}>
             View your clients
           </Link>
         }
-        className="min-h-[480px] rounded-xl border border-border"
+        className={cn(advisorSurface.card, "min-h-[420px]")}
       />
     );
   }
 
   return (
-    <div className="grid min-h-[480px] grid-cols-1 gap-4 lg:grid-cols-[280px_1fr]">
-      <div className="overflow-hidden rounded-xl border border-border">
+    <div className="grid min-h-[420px] grid-cols-1 gap-3 lg:grid-cols-[260px_1fr]">
+      <SurfaceCard padding={false} className="overflow-hidden">
         {threads.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => setActiveId(t.id)}
             className={cn(
-              "flex w-full items-center gap-3 border-b border-border/60 px-3 py-3 text-left transition-colors last:border-0",
-              activeId === t.id ? "bg-muted/50" : "hover:bg-muted/30",
+              "flex w-full items-center gap-3 border-b border-border/60 px-3 py-2.5 text-left transition-colors last:border-0",
+              activeId === t.id ? "bg-[#eef0f7]" : "hover:bg-[#faf9f6]",
             )}
           >
             <Avatar size="sm">
@@ -95,12 +96,12 @@ export function MessagesWorkspace() {
             ) : null}
           </button>
         ))}
-      </div>
+      </SurfaceCard>
 
-      <div className="flex flex-col rounded-xl border border-border">
+      <SurfaceCard padding={false} className="flex flex-col overflow-hidden">
         {activeThread?.client_id ? (
           <>
-            <div className="border-b border-border px-4 py-3">
+            <div className="border-b border-border/60 bg-[#f7f6f3] px-4 py-2.5">
               <TextSmall className="font-semibold">{activeThread.client_name}</TextSmall>
             </div>
             <MessageThread
@@ -116,7 +117,7 @@ export function MessagesWorkspace() {
         ) : (
           <Muted className="p-8 text-center">Select a conversation</Muted>
         )}
-      </div>
+      </SurfaceCard>
     </div>
   );
 }
