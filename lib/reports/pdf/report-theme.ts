@@ -23,7 +23,7 @@ export const colors = {
 
 export const fonts = {
   heading: "Playfair Display",
-  body: "Aktiv Grotesk",
+  body: "Playfair Display",
 };
 
 export const reportStyles = StyleSheet.create({
