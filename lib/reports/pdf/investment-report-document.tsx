@@ -1,5 +1,5 @@
 import React from "react";
-import { Document, Text, View } from "@react-pdf/renderer";
+import { Document, Image, Page, Text, View } from "@react-pdf/renderer";
 
 import type {
   InvestmentReportData,
@@ -7,7 +7,7 @@ import type {
   ReportTransactionRow,
 } from "@/lib/reports/types";
 import { formatPct, formatUsd } from "@/lib/wealth/constants";
-import { JA_REPORT_LOGO } from "@/lib/reports/pdf/report-assets";
+import { ALLOCATION_DESK, JA_REPORT_LOGO, JA_REPORT_LOGO_DARK } from "@/lib/reports/pdf/report-assets";
 import { AllocationChart, ValueChart } from "@/lib/reports/pdf/report-charts";
 import {
   BackCoverPage,
@@ -18,7 +18,7 @@ import {
   ReportPageShell,
   SubsectionTitle,
 } from "@/lib/reports/pdf/report-layout";
-import { reportStyles } from "@/lib/reports/pdf/report-theme";
+import { REPORT_DOCUMENT_TITLE, reportStyles } from "@/lib/reports/pdf/report-theme";
 
 const NOT_APPLICABLE = "Not applicable";
 
@@ -460,12 +460,14 @@ export function InvestmentReportDocument({
         ) : null}
         <SubsectionTitle>Important notices</SubsectionTitle>
         <BulletList items={data.importantNotices} />
-        <SubsectionTitle>Period performance</SubsectionTitle>
-        <PeriodPerformanceTable data={data} />
-        <ReportFootnote>
-          Percentage change reflects returns on invested capital and excludes uninvested cash on
-          account unless noted. All values in {data.currency}.
-        </ReportFootnote>
+        <View wrap={false}>
+          <SubsectionTitle>Period performance</SubsectionTitle>
+          <PeriodPerformanceTable data={data} />
+          <ReportFootnote>
+            Percentage change reflects returns on invested capital and excludes uninvested cash on
+            account unless noted. All values in {data.currency}.
+          </ReportFootnote>
+        </View>
       </ReportPageShell>
 
       <ReportPageShell
@@ -491,13 +493,22 @@ export function InvestmentReportDocument({
         </ReportPageShell>
       ))}
 
-      <ReportPageShell
-        {...shellProps}
-        pageNumber={++pageNumber}
-        pageTitle="Portfolio Allocation"
-      >
-        <AllocationChart slices={data.allocationSlices} />
-      </ReportPageShell>
+      <Page size="A4" orientation="landscape" style={reportStyles.allocationSplitPage}>
+        <Image src={ALLOCATION_DESK} style={reportStyles.allocationPhoto} />
+        <View style={reportStyles.allocationPanel}>
+          <Text style={reportStyles.pageTitleLandscape}>Portfolio Allocation</Text>
+          <View style={reportStyles.titleRule} />
+          <AllocationChart slices={data.allocationSlices} size={200} />
+          <View style={reportStyles.allocationFooterRule} />
+          <View style={reportStyles.allocationFooter}>
+            <Text
+              style={reportStyles.referencePageNumber}
+              render={({ pageNumber: printed }) => `${printed} | ${REPORT_DOCUMENT_TITLE}`}
+            />
+            <Image src={JA_REPORT_LOGO_DARK} style={reportStyles.footerLogo} />
+          </View>
+        </View>
+      </Page>
 
       <ReportPageShell
         {...shellProps}

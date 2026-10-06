@@ -141,8 +141,10 @@ export function ValueChart({ points }: { points: InvestmentReportData["historyPo
 
 export function AllocationChart({
   slices,
+  size = 220,
 }: {
   slices: InvestmentReportData["allocationSlices"];
+  size?: number;
 }) {
   const activeSlices = slices.filter(
     (slice) => Number.isFinite(slice.allocationPct) && slice.allocationPct > 0.05,
@@ -158,7 +160,6 @@ export function AllocationChart({
     allocationPct: pctTotal > 0 ? (slice.allocationPct / pctTotal) * 100 : 0,
   }));
 
-  const size = 260;
   const cx = size / 2;
   const cy = size / 2;
   const r = size * 0.38;

@@ -11,22 +11,28 @@ import { Muted, TextSmall } from "@/components/ui/typography";
 import { ALL_BUCKETS, BUCKET_LABELS } from "@/lib/wealth/constants";
 import type { PortfolioSnapshot } from "@/lib/wealth/types";
 
+function valuesFromSnapshots(snapshots: PortfolioSnapshot[]) {
+  return Object.fromEntries(
+    ALL_BUCKETS.map((b) => [
+      b,
+      String(snapshots.find((s) => s.bucket === b)?.current_value_usd ?? 0),
+    ]),
+  );
+}
+
 export function PortfolioQuickUpdate({
   clientId,
   snapshots,
   onSaved,
+  embedded = false,
 }: {
   clientId: string;
   snapshots: PortfolioSnapshot[];
   onSaved?: () => void;
+  embedded?: boolean;
 }) {
   const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      ALL_BUCKETS.map((b) => [
-        b,
-        String(snapshots.find((s) => s.bucket === b)?.current_value_usd ?? 0),
-      ]),
-    ),
+    valuesFromSnapshots(snapshots),
   );
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
@@ -76,12 +82,17 @@ export function PortfolioQuickUpdate({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <TextSmall className="font-semibold">Quick value update</TextSmall>
-      <Muted className="mb-4 text-sm">
-        Update per asset class. Changes are logged in the audit trail.
-      </Muted>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className={embedded ? "" : "rounded-xl border border-border bg-card p-4"}>
+      {embedded ? null : (
+        <>
+          <TextSmall className="font-semibold">Manual value update</TextSmall>
+          <Muted className="mb-4 text-sm">
+            For property, private funds, cash, and anything that is not on the trackable list.
+            Changes are logged in the audit trail.
+          </Muted>
+        </>
+      )}
+      <div className="grid gap-3 sm:grid-cols-2">
         {ALL_BUCKETS.map((bucket) => (
           <div key={bucket} className="flex flex-col gap-1">
             <Label htmlFor={`qv-${bucket}`}>{BUCKET_LABELS[bucket]}</Label>

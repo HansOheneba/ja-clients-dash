@@ -2,36 +2,31 @@ import React from "react";
 import { Image, Page, Text, View } from "@react-pdf/renderer";
 
 import type { InvestmentReportData } from "@/lib/reports/types";
-import { BACK_COVER_PATTERN, JA_REPORT_LOGO } from "@/lib/reports/pdf/report-assets";
+import {
+  BACK_COVER_PATTERN,
+  COVER_SKYLINE,
+  JA_REPORT_LOGO_DARK,
+} from "@/lib/reports/pdf/report-assets";
 import {
   FIRM_ADDRESS,
   REPORT_COVER_TITLE,
   REPORT_DOCUMENT_TITLE,
-  fonts,
   reportStyles,
 } from "@/lib/reports/pdf/report-theme";
 
 export function ReferenceFooter({
-  clientName,
-  reference,
-  clientNumber,
-  pageNumber,
+  logoSrc = JA_REPORT_LOGO_DARK,
 }: {
-  clientName: string;
-  reference: string;
-  clientNumber: string;
-  pageNumber: number;
+  pageNumber?: number;
+  logoSrc?: string;
 }) {
   return (
     <View style={reportStyles.referenceFooter} fixed>
-      <View style={reportStyles.referenceFooterMeta}>
-        <Text style={reportStyles.referenceFooterLine}>Client: {clientName}</Text>
-        <Text style={reportStyles.referenceFooterLine}>Our Ref: {reference}</Text>
-        <Text style={reportStyles.referenceFooterLine}>Client Number: {clientNumber}</Text>
-      </View>
-      <Text style={reportStyles.referencePageNumber}>
-        {pageNumber} | {REPORT_DOCUMENT_TITLE}
-      </Text>
+      <Text
+        style={reportStyles.referencePageNumber}
+        render={({ pageNumber: printed }) => `${printed} | ${REPORT_DOCUMENT_TITLE}`}
+      />
+      <Image src={logoSrc} style={reportStyles.footerLogo} />
     </View>
   );
 }
@@ -53,14 +48,29 @@ export function ReportPageShell({
 }) {
   return (
     <Page size="A4" orientation="landscape" style={reportStyles.pageLandscape}>
-      {pageTitle ? <Text style={reportStyles.pageTitleLandscape}>{pageTitle}</Text> : null}
+      <View style={reportStyles.pageHeaderRow} fixed>
+        <View style={reportStyles.pageHeaderMeta}>
+          <Text style={reportStyles.pageHeaderLine}>
+            <Text style={reportStyles.pageHeaderLabel}>Client: </Text>
+            {clientName}
+          </Text>
+          <Text style={reportStyles.pageHeaderLine}>
+            <Text style={reportStyles.pageHeaderLabel}>Our Ref: </Text>
+            {reference}
+          </Text>
+          <Text style={reportStyles.pageHeaderLine}>
+            <Text style={reportStyles.pageHeaderLabel}>Client Number: </Text>
+            {clientNumber}
+          </Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          {pageTitle ? <Text style={reportStyles.pageTitleLandscape}>{pageTitle}</Text> : null}
+          <View style={reportStyles.titleRule} />
+        </View>
+      </View>
       <View>{children}</View>
-      <ReferenceFooter
-        clientName={clientName}
-        reference={reference}
-        clientNumber={clientNumber}
-        pageNumber={pageNumber}
-      />
+      <View style={reportStyles.footerRule} fixed />
+      <ReferenceFooter pageNumber={pageNumber} />
     </Page>
   );
 }
@@ -68,33 +78,20 @@ export function ReportPageShell({
 export function CoverPage({
   data,
   logoSrc,
+  photoSrc = COVER_SKYLINE,
 }: {
   data: InvestmentReportData;
   logoSrc: string;
+  photoSrc?: string;
 }) {
   return (
     <Page size="A4" orientation="landscape" style={reportStyles.coverPage}>
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "flex-start",
-          paddingHorizontal: 48,
-        }}
-      >
-        <Image src={logoSrc} style={reportStyles.coverLogo} />
-        <View style={reportStyles.coverRule} />
+      <Image src={photoSrc} style={reportStyles.coverPhoto} />
+      <View style={reportStyles.coverPanel}>
         <Text style={reportStyles.coverClientName}>{data.clientName}</Text>
         <Text style={reportStyles.coverTitle}>{REPORT_COVER_TITLE}</Text>
         <Text style={reportStyles.coverDate}>{data.currentStatementLabel}</Text>
-      </View>
-      <View style={reportStyles.referenceFooter}>
-        <Text style={{ fontSize: 6.5, color: "rgba(255,255,255,0.5)", fontFamily: fonts.body }}>
-          JA Wealth
-        </Text>
-        <Text style={{ fontSize: 6.5, color: "rgba(255,255,255,0.5)", fontFamily: fonts.body }}>
-          1 | {REPORT_DOCUMENT_TITLE}
-        </Text>
+        <Image src={logoSrc} style={reportStyles.coverLogo} />
       </View>
     </Page>
   );

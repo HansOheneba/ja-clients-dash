@@ -131,6 +131,7 @@ export interface PortfolioHolding {
   bucket: PortfolioBucket;
   investment_name: string;
   ticker: string;
+  quantity: number | null;
   original_value_usd: number;
   market_value_usd: number;
   sort_order: number;

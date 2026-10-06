@@ -76,3 +76,29 @@ export function formatPct(value: number | null | undefined, signed = false): str
   if (!signed || value === 0) return formatted;
   return value > 0 ? `+ ${formatted}` : `- ${formatted}`;
 }
+
+/** Dashboard figures: $11.20M, $427.5K, $22K. */
+export function formatCompactUsd(value: number, signed = false): string {
+  if (!Number.isFinite(value)) return "$0";
+  const abs = Math.abs(value);
+  let body: string;
+  if (abs >= 1_000_000) {
+    body = `$${(abs / 1_000_000).toFixed(2)}M`;
+  } else if (abs >= 1_000) {
+    const thousands = abs / 1_000;
+    const rounded =
+      thousands >= 100 && Math.abs(thousands - Math.round(thousands)) < 0.05
+        ? String(Math.round(thousands))
+        : thousands.toFixed(1).replace(/\.0$/, "");
+    body = `$${rounded}K`;
+  } else {
+    body = abs.toLocaleString("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    });
+  }
+  if (value < 0) return `-${body}`;
+  if (signed && value > 0) return `+${body}`;
+  return body;
+}

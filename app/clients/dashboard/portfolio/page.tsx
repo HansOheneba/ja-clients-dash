@@ -3,6 +3,7 @@
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 import { AllocationPieChart, AssetAreaChart } from "@/components/charts/asset-charts";
+import { TrackedAssets } from "@/components/portfolio/tracked-assets";
 import { PageShell } from "@/components/layout/page-shell";
 import {
   DashCard,
@@ -208,6 +209,8 @@ export default function ClientPortfolioPage() {
           </table>
         </DashCardContent>
       </DashCard>
+
+      <TrackedAssets />
     </PageShell>
   );
 }

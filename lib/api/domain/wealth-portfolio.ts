@@ -25,7 +25,7 @@ export interface JaPortfolioSummary {
   periodReturnPct: number;
   ytdPct: number;
   buckets: JaBucketOverview[];
-  history: { month: string; value: number }[];
+  history: { month: string; value: number; recordedOn?: string }[];
 }
 
 export async function getJaPortfolioForClient(
@@ -68,6 +68,7 @@ export async function getJaPortfolioForClient(
   const consolidatedHistory = history.map((h) => ({
     month: new Date(h.recorded_on).toLocaleDateString("en-GB", { month: "short", year: "2-digit" }),
     value: h.total_value_usd,
+    recordedOn: h.recorded_on.slice(0, 10),
   }));
 
   return { totalUSD, periodGainUsd, periodReturnPct, ytdPct, buckets, history: consolidatedHistory };

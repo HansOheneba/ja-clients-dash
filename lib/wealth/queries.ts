@@ -405,14 +405,22 @@ export async function getPortfolioSnapshotsForPeriods(
 }
 
 function mapHolding(
-  row: PortfolioHolding & { original_value_usd: string | number; market_value_usd: string | number },
+  row: PortfolioHolding & {
+    quantity: string | number | null;
+    original_value_usd: string | number;
+    market_value_usd: string | number;
+  },
 ): PortfolioHolding {
   return {
     ...row,
+    quantity: row.quantity == null ? null : Number(row.quantity),
     original_value_usd: Number(row.original_value_usd),
     market_value_usd: Number(row.market_value_usd),
   };
 }
+
+const HOLDING_COLUMNS = `id, client_id, period_id, bucket, investment_name, ticker,
+            quantity::float8, original_value_usd::float8, market_value_usd::float8, sort_order`;
 
 /** Period-specific rows win; otherwise client-level rows (period_id IS NULL) apply. */
 export async function getPortfolioHoldings(
@@ -420,10 +428,13 @@ export async function getPortfolioHoldings(
   periodId: string,
 ): Promise<PortfolioHolding[]> {
   const rows = await queryDb<
-    PortfolioHolding & { original_value_usd: string; market_value_usd: string }
+    PortfolioHolding & {
+      quantity: string | null;
+      original_value_usd: string;
+      market_value_usd: string;
+    }
   >(
-    `SELECT id, client_id, period_id, bucket, investment_name, ticker,
-            original_value_usd::float8, market_value_usd::float8, sort_order
+    `SELECT ${HOLDING_COLUMNS}
      FROM wealth.portfolio_holdings
      WHERE client_id = $1
        AND (period_id = $2 OR period_id IS NULL)
@@ -439,6 +450,26 @@ export async function getPortfolioHoldings(
   return rows.filter((row) => row.period_id == null).map(mapHolding);
 }
 
+export async function getCurrentPortfolioHoldings(clientId: string): Promise<PortfolioHolding[]> {
+  const period = await getLatestPeriodForClient(clientId);
+  if (period) return getPortfolioHoldings(clientId, period.id);
+
+  const rows = await queryDb<
+    PortfolioHolding & {
+      quantity: string | null;
+      original_value_usd: string;
+      market_value_usd: string;
+    }
+  >(
+    `SELECT ${HOLDING_COLUMNS}
+     FROM wealth.portfolio_holdings
+     WHERE client_id = $1 AND period_id IS NULL
+     ORDER BY bucket, sort_order, investment_name`,
+    [clientId],
+  );
+  return rows.map(mapHolding);
+}
+
 export async function replacePortfolioHoldings(
   clientId: string,
   periodId: string,
@@ -446,6 +477,7 @@ export async function replacePortfolioHoldings(
     bucket: PortfolioBucket;
     investment_name: string;
     ticker: string;
+    quantity: number | null;
     original_value_usd: number;
     market_value_usd: number;
   }>,
@@ -459,20 +491,24 @@ export async function replacePortfolioHoldings(
   for (let index = 0; index < rows.length; index++) {
     const row = rows[index];
     const result = await queryDb<
-      PortfolioHolding & { original_value_usd: string; market_value_usd: string }
+      PortfolioHolding & {
+        quantity: string | null;
+        original_value_usd: string;
+        market_value_usd: string;
+      }
     >(
       `INSERT INTO wealth.portfolio_holdings (
-        client_id, period_id, bucket, investment_name, ticker,
+        client_id, period_id, bucket, investment_name, ticker, quantity,
         original_value_usd, market_value_usd, sort_order
-      ) VALUES ($1, $2, $3::wealth.portfolio_bucket, $4, $5, $6, $7, $8)
-      RETURNING id, client_id, period_id, bucket, investment_name, ticker,
-                original_value_usd::float8, market_value_usd::float8, sort_order`,
+      ) VALUES ($1, $2, $3::wealth.portfolio_bucket, $4, $5, $6, $7, $8, $9)
+      RETURNING ${HOLDING_COLUMNS}`,
       [
         clientId,
         periodId,
         row.bucket,
         row.investment_name.trim(),
         row.ticker.trim(),
+        row.quantity,
         row.original_value_usd,
         row.market_value_usd,
         index + 1,
@@ -482,6 +518,74 @@ export async function replacePortfolioHoldings(
   }
 
   return inserted;
+}
+
+/** Add a priced holding, or update quantity when the same ticker is already in that bucket. */
+export async function saveTrackedHolding(
+  clientId: string,
+  input: {
+    bucket: PortfolioBucket;
+    investment_name: string;
+    ticker: string;
+    quantity: number;
+    market_value_usd: number | null;
+  },
+): Promise<{ holding: PortfolioHolding; updated: boolean }> {
+  const period = await getLatestPeriodForClient(clientId);
+  const current = period
+    ? await getPortfolioHoldings(clientId, period.id)
+    : await getCurrentPortfolioHoldings(clientId);
+  const periodId = current.length > 0 ? current[0].period_id : (period?.id ?? null);
+  const ticker = input.ticker.trim().toUpperCase();
+  const match = current.find(
+    (row) => row.ticker.trim().toUpperCase() === ticker && row.bucket === input.bucket,
+  );
+
+  if (match) {
+    const rows = await queryDb<
+      PortfolioHolding & {
+        quantity: string | null;
+        original_value_usd: string;
+        market_value_usd: string;
+      }
+    >(
+      `UPDATE wealth.portfolio_holdings
+       SET quantity = $2,
+           market_value_usd = COALESCE($3, market_value_usd),
+           investment_name = $4
+       WHERE id = $1 AND client_id = $5
+       RETURNING ${HOLDING_COLUMNS}`,
+      [match.id, input.quantity, input.market_value_usd, input.investment_name.trim(), clientId],
+    );
+    if (!rows[0]) throw new Error("Could not update holding");
+    return { holding: mapHolding(rows[0]), updated: true };
+  }
+
+  const rows = await queryDb<
+    PortfolioHolding & {
+      quantity: string | null;
+      original_value_usd: string;
+      market_value_usd: string;
+    }
+  >(
+    `INSERT INTO wealth.portfolio_holdings (
+      client_id, period_id, bucket, investment_name, ticker, quantity,
+      original_value_usd, market_value_usd, sort_order
+    ) VALUES ($1, $2, $3::wealth.portfolio_bucket, $4, $5, $6, 0, $7, $8)
+    RETURNING ${HOLDING_COLUMNS}`,
+    [
+      clientId,
+      periodId,
+      input.bucket,
+      input.investment_name.trim(),
+      ticker,
+      input.quantity,
+      input.market_value_usd ?? 0,
+      current.length + 1,
+    ],
+  );
+  if (!rows[0]) throw new Error("Could not save holding");
+  return { holding: mapHolding(rows[0]), updated: false };
 }
 
 export async function getPortfolioHistory(
