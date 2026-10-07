@@ -1,15 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Area, AreaChart, CartesianGrid, Cell, Line, Pie, PieChart, XAxis, YAxis } from "recharts";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Area, Bar, CartesianGrid, Cell, ComposedChart, Line, Pie, PieChart, XAxis, YAxis } from "recharts";
 import { Plus } from "lucide-react";
 
 import { ComplianceAuditPanel } from "@/components/advisors/compliance-audit-panel";
 import { PortfolioQuickUpdate } from "@/components/advisors/portfolio-quick-update";
 import { TrackAssetPanel } from "@/components/advisors/track-asset-panel";
-import { advisorSurface, SurfaceCard } from "@/components/advisors/advisor-surface";
-import { AssetAreaChart } from "@/components/charts/asset-charts";
+import { advisorSurface } from "@/components/advisors/advisor-surface";
 import { Button } from "@/components/ui/button";
 import {
   ChartContainer,
@@ -18,12 +17,6 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -31,7 +24,22 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Muted, Numeric, Overline, TextSmall } from "@/components/ui/typography";
+import {
+  CategoryPill,
+  ColumnLabel,
+  Table,
+  TableBody,
+  TableCell,
+  TableFooterBar,
+  TableHead,
+  TableHeader,
+  TableRow,
+  bucketPillLabel,
+  bucketPillTone,
+  usePagedRows,
+  type PillTone,
+} from "@/components/ui/table";
+import { Muted, Numeric, TextSmall } from "@/components/ui/typography";
 import type { JaPortfolioSummary } from "@/lib/api/domain/wealth-portfolio";
 import { formatChartCompactUsd, formatChartUsd } from "@/lib/chart-format";
 import { TRACKABLE_ASSETS } from "@/lib/market/trackable-assets";
@@ -50,11 +58,23 @@ import type {
 } from "@/lib/wealth/types";
 import { cn } from "@/lib/utils";
 
-const SECTIONS = ["Overview", "Holdings", "Allocation", "Performance", "Activity"] as const;
-type SectionId = (typeof SECTIONS)[number];
-
-const RANGES = ["1M", "3M", "6M", "YTD", "1Y", "3Y", "All"] as const;
+const RANGES = ["1M", "3M", "6M", "YTD", "1Y", "All"] as const;
 type RangeId = (typeof RANGES)[number];
+type ChartMode = "value" | "return" | "flows";
+type AllocationBasis = "portfolio" | "assetClass";
+type ValuationKind = "market" | "advisor" | "statement" | "manual" | "estimated";
+
+function sliceTone(id: string): PillTone {
+  const tones: Record<string, PillTone> = {
+    equities: "indigo",
+    bonds: "amber",
+    property: "orange",
+    cash: "sky",
+    alternatives: "violet",
+    other: "slate",
+  };
+  return tones[id] ?? bucketPillTone(id);
+}
 
 const SHORT_BUCKET: Record<PortfolioBucket, string> = {
   income: "Income",
@@ -64,29 +84,56 @@ const SHORT_BUCKET: Record<PortfolioBucket, string> = {
   coa: "Cash",
 };
 
+const ASSET_CLASSES: {
+  id: string;
+  name: string;
+  color: string;
+  buckets: PortfolioBucket[];
+}[] = [
+  { id: "equities", name: "Equities", color: "#202356", buckets: ["growth"] },
+  { id: "bonds", name: "Bonds", color: "#b2936b", buckets: ["income", "treasury"] },
+  { id: "property", name: "Property", color: "#8a6f45", buckets: [] },
+  { id: "cash", name: "Cash", color: "#c4b5a0", buckets: ["coa"] },
+  { id: "alternatives", name: "Alternatives", color: "#829850", buckets: ["venture"] },
+  { id: "other", name: "Other", color: "#484848", buckets: [] },
+];
+
+const VALUATION_LABEL: Record<ValuationKind, string> = {
+  market: "Market price",
+  advisor: "Advisor valuation",
+  statement: "Statement value",
+  manual: "Manual value",
+  estimated: "Estimated value",
+};
+
 type HistoryPoint = { month: string; value: number; recordedOn?: string };
 
-type BucketSlice = {
-  id: PortfolioBucket;
+type AllocSlice = {
+  id: string;
   name: string;
-  shortName: string;
   valueUsd: number;
   pct: number;
   color: string;
+  buckets: PortfolioBucket[];
 };
 
-type BreakdownRow = BucketSlice & {
+type BreakdownRow = AllocSlice & {
   changeUsd: number | null;
   periodPct: number | null;
 };
 
-type ActivityFilter = "all" | "contributions" | "withdrawals";
-type ChartMode = "value" | "return";
-type AllocationBasis = "bucket" | "assetClass";
+type ChartRow = {
+  month: string;
+  value: number;
+  flow: number;
+  returnPct: number;
+};
 
-type BenchmarkSeries = {
-  label: string;
-  points: HistoryPoint[];
+type PerfFigure = {
+  gain: number;
+  pct: number | null;
+  flows: number;
+  adjusted: boolean;
 };
 
 function formatStatementDate(value: string) {
@@ -98,9 +145,7 @@ function formatStatementDate(value: string) {
 }
 
 function holdingKind(ticker: string): "Stock" | "ETF" | null {
-  const match = TRACKABLE_ASSETS.find(
-    (asset) => asset.symbol === ticker.trim().toUpperCase(),
-  );
+  const match = TRACKABLE_ASSETS.find((asset) => asset.symbol === ticker.trim().toUpperCase());
   return match?.kind ?? null;
 }
 
@@ -110,98 +155,50 @@ function gainPct(asset: TrackedAsset): number | null {
 }
 
 function quantityLabel(asset: TrackedAsset): string {
-  if (asset.quantity == null || asset.quantity <= 0) return "Add quantity";
+  if (asset.quantity == null || asset.quantity <= 0) return "Quantity not set";
   const qty = asset.quantity.toLocaleString("en-US", { maximumFractionDigits: 4 });
   const kind = holdingKind(asset.ticker);
   if (kind === "Stock") return `${qty} ${asset.quantity === 1 ? "share" : "shares"}`;
   return `${qty} ${asset.quantity === 1 ? "unit" : "units"}`;
 }
 
-function formatPrice(value: number | null): string {
+function signedPct(value: number | null): string {
   if (value == null) return "n/a";
-  return value.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
-function heroChange(portfolio: JaPortfolioSummary | null): {
-  text: string;
-  tone: "up" | "down" | "flat";
-} | null {
-  if (!portfolio) return null;
-  const gain = portfolio.periodGainUsd;
-  const pct = portfolio.periodReturnPct;
-  const pctKnown = pct !== 0 || gain === 0;
-  const tone = gain > 0 ? "up" : gain < 0 ? "down" : "flat";
-  const money = formatCompactUsd(gain, true);
-  if (!pctKnown) return { text: `${money} this period`, tone };
-  const pctText = `${pct > 0 ? "+" : ""}${pct.toFixed(1)}%`;
-  return { text: `${money} · ${pctText} this period`, tone };
+function toneClass(value: number | null | undefined) {
+  if (value == null || value === 0) return "text-muted-foreground";
+  return value > 0 ? "text-emerald-700" : "text-destructive";
 }
 
-function periodNarrative(portfolio: JaPortfolioSummary | null): string | null {
-  if (!portfolio) return null;
-  const gain = portfolio.periodGainUsd;
-  const pct = portfolio.periodReturnPct;
-  if (pct === 0 && gain !== 0) return null;
-  const pctLabel = `${Math.abs(pct).toFixed(1)}%`;
-  const gainLabel = formatCompactUsd(Math.abs(gain));
-  if (Math.abs(pct) < 0.05 && Math.abs(gain) < 1) {
-    return "Portfolio is unchanged this period.";
-  }
-  if (gain >= 0) {
-    return `Portfolio is up ${pctLabel} this period, adding ${gainLabel} in value.`;
-  }
-  return `Portfolio is down ${pctLabel} this period, reducing value by ${gainLabel}.`;
+function isExternalFlow(tx: WealthTransaction) {
+  return (
+    tx.transaction_type === "deposit" ||
+    tx.transaction_type === "drawdown" ||
+    tx.transaction_type === "transfer"
+  );
 }
 
-function buildSlices(
-  portfolio: JaPortfolioSummary | null,
-  snapshots: PortfolioSnapshot[],
-): BucketSlice[] {
-  const rows: BucketSlice[] = portfolio
-    ? portfolio.buckets.map((bucket) => ({
-        id: bucket.id,
-        name: bucket.id === "coa" ? "Cash" : bucket.label,
-        shortName: SHORT_BUCKET[bucket.id],
-        valueUsd: bucket.totalUSD,
-        pct: bucket.allocationPct,
-        color: BUCKET_COLORS[bucket.id],
-      }))
-    : snapshots.map((row) => {
-        const total = snapshots.reduce((sum, item) => sum + item.current_value_usd, 0);
-        return {
-          id: row.bucket,
-          name: row.bucket === "coa" ? "Cash" : BUCKET_LABELS[row.bucket],
-          shortName: SHORT_BUCKET[row.bucket],
-          valueUsd: row.current_value_usd,
-          pct: total > 0 ? (row.current_value_usd / total) * 100 : 0,
-          color: BUCKET_COLORS[row.bucket],
-        };
-      });
-
-  return [...rows].sort((a, b) => b.valueUsd - a.valueUsd);
-}
-
-function buildBreakdown(slices: BucketSlice[], snapshots: PortfolioSnapshot[]): BreakdownRow[] {
-  return slices.map((slice) => {
-    const snap = snapshots.find((row) => row.bucket === slice.id);
-    if (!snap) return { ...slice, changeUsd: null, periodPct: null };
-    const changeUsd = snap.current_value_usd - snap.previous_value_usd;
-    const periodPct =
-      snap.period_change_pct ??
-      (snap.previous_value_usd > 0 ? (changeUsd / snap.previous_value_usd) * 100 : null);
-    return { ...slice, changeUsd, periodPct };
-  });
+function cashFlowsBetween(
+  transactions: WealthTransaction[],
+  start: string,
+  end: string,
+  inclusiveStart: boolean,
+) {
+  return transactions.reduce((sum, tx) => {
+    if (!isExternalFlow(tx) || tx.bucket == null || tx.bucket === "coa") return sum;
+    const day = tx.occurred_on.slice(0, 10);
+    const afterStart = inclusiveStart ? day >= start : day > start;
+    if (afterStart && day <= end) return sum + tx.amount_usd;
+    return sum;
+  }, 0);
 }
 
 function windowStart(endIso: string, range: Exclude<RangeId, "All">): string {
   const end = new Date(`${endIso}T12:00:00`);
   if (range === "YTD") return `${end.getFullYear()}-01-01`;
-  const months = { "1M": 1, "3M": 3, "6M": 6, "1Y": 12, "3Y": 36 }[range];
+  const months = { "1M": 1, "3M": 3, "6M": 6, "1Y": 12 }[range];
   const start = new Date(end);
   start.setMonth(start.getMonth() - months);
   const month = String(start.getMonth() + 1).padStart(2, "0");
@@ -219,61 +216,194 @@ function sliceHistory(history: HistoryPoint[], range: RangeId): HistoryPoint[] {
   return dated.filter((point) => (point.recordedOn ?? "") >= start);
 }
 
-function toReturnSeries(points: HistoryPoint[]): HistoryPoint[] {
-  const base = points[0]?.value ?? 0;
-  if (base <= 0) return points.map((point) => ({ ...point, value: 0 }));
-  return points.map((point) => ({
-    ...point,
-    value: ((point.value - base) / base) * 100,
-  }));
+function rangePerformance(
+  history: HistoryPoint[],
+  transactions: WealthTransaction[],
+  range: RangeId,
+): PerfFigure | null {
+  const points = sliceHistory(history, range);
+  if (points.length < 2) return null;
+  const start = points[0];
+  const end = points[points.length - 1];
+  const valueChange = end.value - start.value;
+  if (!start.recordedOn || !end.recordedOn) {
+    return {
+      gain: valueChange,
+      pct: start.value > 0 ? (valueChange / start.value) * 100 : null,
+      flows: 0,
+      adjusted: false,
+    };
+  }
+  const flows = cashFlowsBetween(transactions, start.recordedOn, end.recordedOn, false);
+  const gain = valueChange - flows;
+  return {
+    gain,
+    pct: start.value > 0 ? (gain / start.value) * 100 : null,
+    flows,
+    adjusted: true,
+  };
 }
 
-function movementLabel(tx: WealthTransaction): string {
-  if (tx.transaction_type === "fee") return "Fee";
-  if (tx.transaction_type === "transfer") return "Transfer";
-  if (tx.amount_usd < 0) return "Withdrawal";
-  return "Contribution";
+function statementPerformance(
+  portfolio: JaPortfolioSummary | null,
+  period: StatementPeriod | null,
+  transactions: WealthTransaction[],
+): PerfFigure | null {
+  if (!portfolio) return null;
+  const flows =
+    period == null
+      ? 0
+      : cashFlowsBetween(
+          transactions,
+          period.period_start.slice(0, 10),
+          period.period_end.slice(0, 10),
+          true,
+        );
+  const gain = portfolio.periodGainUsd - flows;
+  const previous =
+    portfolio.periodReturnPct !== 0
+      ? portfolio.periodGainUsd / (portfolio.periodReturnPct / 100)
+      : null;
+  const pct =
+    previous != null && previous > 0
+      ? (gain / previous) * 100
+      : flows === 0
+        ? portfolio.periodReturnPct
+        : null;
+  return { gain, pct, flows, adjusted: period != null };
 }
 
-function ChangeText({ value }: { value: number | null }) {
-  if (value == null) return <span className="text-xs text-muted-foreground">n/a</span>;
-  return (
-    <span
-      className={cn(
-        "font-numeric text-xs font-medium",
-        value > 0 && "text-emerald-700",
-        value < 0 && "text-destructive",
-        value === 0 && "text-muted-foreground",
-      )}
-    >
-      {value > 0 ? "+" : ""}
-      {value.toFixed(1)}%
-    </span>
-  );
+function buildChartRows(
+  history: HistoryPoint[],
+  transactions: WealthTransaction[],
+  range: RangeId,
+): ChartRow[] {
+  const points = sliceHistory(history, range);
+  if (points.length === 0) return [];
+  const startValue = points[0].value;
+  let cumulativeFlows = 0;
+  return points.map((point, index) => {
+    const date = point.recordedOn ?? "";
+    const prev = points[index - 1]?.recordedOn ?? "";
+    const flow =
+      index > 0 && prev && date ? cashFlowsBetween(transactions, prev, date, false) : 0;
+    cumulativeFlows += flow;
+    const investmentValue = point.value - cumulativeFlows;
+    const returnPct =
+      startValue > 0 ? ((investmentValue - startValue) / startValue) * 100 : 0;
+    return { month: point.month, value: point.value, flow, returnPct };
+  });
 }
 
-function Section({
+function buildPortfolioSlices(
+  portfolio: JaPortfolioSummary | null,
+  snapshots: PortfolioSnapshot[],
+): AllocSlice[] {
+  const rows: AllocSlice[] = portfolio
+    ? portfolio.buckets.map((bucket) => ({
+        id: bucket.id,
+        name: bucket.id === "coa" ? "Cash" : bucket.label,
+        valueUsd: bucket.totalUSD,
+        pct: bucket.allocationPct,
+        color: BUCKET_COLORS[bucket.id],
+        buckets: [bucket.id],
+      }))
+    : snapshots.map((row) => {
+        const total = snapshots.reduce((sum, item) => sum + item.current_value_usd, 0);
+        return {
+          id: row.bucket,
+          name: row.bucket === "coa" ? "Cash" : BUCKET_LABELS[row.bucket],
+          valueUsd: row.current_value_usd,
+          pct: total > 0 ? (row.current_value_usd / total) * 100 : 0,
+          color: BUCKET_COLORS[row.bucket],
+          buckets: [row.bucket],
+        };
+      });
+  return [...rows].sort((a, b) => b.valueUsd - a.valueUsd);
+}
+
+function buildAssetClassSlices(portfolios: AllocSlice[]): AllocSlice[] {
+  const byBucket = new Map(portfolios.map((slice) => [slice.buckets[0], slice]));
+  const total = portfolios.reduce((sum, slice) => sum + slice.valueUsd, 0);
+  return ASSET_CLASSES.map((assetClass) => {
+    const valueUsd = assetClass.buckets.reduce(
+      (sum, bucket) => sum + (byBucket.get(bucket)?.valueUsd ?? 0),
+      0,
+    );
+    return {
+      id: assetClass.id,
+      name: assetClass.name,
+      valueUsd,
+      pct: total > 0 ? (valueUsd / total) * 100 : 0,
+      color: assetClass.color,
+      buckets: assetClass.buckets,
+    };
+  }).filter((slice) => slice.valueUsd > 0);
+}
+
+function buildBreakdown(slices: AllocSlice[], snapshots: PortfolioSnapshot[]): BreakdownRow[] {
+  return slices.map((slice) => {
+    const bucket = slice.buckets[0];
+    const snap = bucket ? snapshots.find((row) => row.bucket === bucket) : undefined;
+    if (!snap) return { ...slice, changeUsd: null, periodPct: null };
+    const changeUsd = snap.current_value_usd - snap.previous_value_usd;
+    const periodPct =
+      snap.period_change_pct ??
+      (snap.previous_value_usd > 0 ? (changeUsd / snap.previous_value_usd) * 100 : null);
+    return { ...slice, changeUsd, periodPct };
+  });
+}
+
+function activityMeta(tx: WealthTransaction): { label: string; tone: "in" | "out" | "neutral" } {
+  if (tx.transaction_type === "deposit") return { label: "Contribution", tone: "in" };
+  if (tx.transaction_type === "drawdown") return { label: "Withdrawal", tone: "out" };
+  if (tx.transaction_type === "transfer") return { label: "Transfer", tone: "neutral" };
+  if (tx.transaction_type === "fee") return { label: "Fee", tone: "out" };
+  const text = tx.description.toLowerCase();
+  if (/\bsale\b|\bsold\b/.test(text)) return { label: "Investment sale", tone: "in" };
+  if (/\bpurchase\b|\bbought\b|\bbuy\b/.test(text)) return { label: "Investment purchase", tone: "out" };
+  return tx.amount_usd < 0
+    ? { label: "Withdrawal", tone: "out" }
+    : { label: "Contribution", tone: "in" };
+}
+
+function valuationFor(asset: TrackedAsset, statementDate: string | null): {
+  kind: ValuationKind;
+  updated: string;
+} {
+  const dated = statementDate ? `Updated ${statementDate}` : "Saved value";
+  if (asset.live) return { kind: "market", updated: "Updated just now" };
+  if (asset.priceError) return { kind: "statement", updated: dated };
+  if ((asset.quantity == null || asset.quantity <= 0) && asset.marketValueUsd > 0) {
+    return { kind: "manual", updated: dated };
+  }
+  return { kind: "statement", updated: dated };
+}
+
+function SectionBlock({
   title,
   description,
   action,
   children,
+  id,
 }: {
   title: string;
   description?: string;
   action?: ReactNode;
   children: ReactNode;
+  id?: string;
 }) {
   return (
-    <SurfaceCard>
+    <section id={id} className="border-t border-border/60 pt-8">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <h3 className={advisorSurface.sectionTitle}>{title}</h3>
-          {description ? <Muted className="mt-0.5 text-[13px]">{description}</Muted> : null}
+          {description ? <Muted className="mt-0.5 max-w-xl text-[13px]">{description}</Muted> : null}
         </div>
         {action}
       </div>
       {children}
-    </SurfaceCard>
+    </section>
   );
 }
 
@@ -313,20 +443,60 @@ function Segmented<T extends string>({
   );
 }
 
+function ValuationSource({ kind, updated }: { kind: ValuationKind; updated: string }) {
+  return (
+    <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span
+        aria-hidden
+        className={cn(
+          "size-1.5 shrink-0",
+          kind === "market" && "rounded-full bg-emerald-600",
+          kind === "advisor" && "rotate-45 bg-[#b2936b]",
+          kind !== "market" && kind !== "advisor" && "rounded-full border border-current",
+        )}
+      />
+      <span>
+        {VALUATION_LABEL[kind]}
+        <span className="text-muted-foreground/80"> · {updated}</span>
+      </span>
+    </span>
+  );
+}
+
+function PerfStat({
+  label,
+  gain,
+  pct,
+}: {
+  label: string;
+  gain: number | null;
+  pct: number | null;
+}) {
+  return (
+    <div>
+      <Muted className="text-[11px] tracking-wide uppercase">{label}</Muted>
+      <p className={cn("mt-1 font-numeric text-lg font-semibold", toneClass(gain))}>
+        {gain == null ? "n/a" : formatCompactUsd(gain, true)}
+      </p>
+      <p className={cn("font-numeric text-sm", toneClass(pct))}>{signedPct(pct)}</p>
+    </div>
+  );
+}
+
 function AllocationPanel({
   slices,
   selectedId,
   onSelect,
 }: {
-  slices: BucketSlice[];
-  selectedId: PortfolioBucket | null;
-  onSelect: (id: PortfolioBucket | null) => void;
+  slices: AllocSlice[];
+  selectedId: string | null;
+  onSelect: (slice: AllocSlice | null) => void;
 }) {
-  const [basis, setBasis] = useState<AllocationBasis>("bucket");
-  const [hoverId, setHoverId] = useState<PortfolioBucket | null>(null);
-  const chartSlices = slices.filter((slice) => slice.valueUsd > 0);
-  const focus =
-    chartSlices.find((slice) => slice.id === (hoverId ?? selectedId)) ?? null;
+  const [basis, setBasis] = useState<AllocationBasis>("portfolio");
+  const [hoverId, setHoverId] = useState<string | null>(null);
+  const visible = basis === "portfolio" ? slices : buildAssetClassSlices(slices);
+  const chartSlices = visible.filter((slice) => slice.valueUsd > 0);
+  const focus = chartSlices.find((slice) => slice.id === (hoverId ?? selectedId)) ?? null;
   const chartConfig = {
     value: { label: "Value" },
     ...Object.fromEntries(
@@ -335,31 +505,30 @@ function AllocationPanel({
   } satisfies ChartConfig;
 
   return (
-    <Section
-      title="Portfolio Allocation"
-      description="Buckets are strategies. Holdings are the assets inside them."
+    <SectionBlock
+      title="Asset allocation"
+      description="Portfolio is the strategy sleeve. Asset class rolls those sleeves into equities, bonds, cash, and alternatives."
       action={
         <Segmented
           label="Allocation basis"
           value={basis}
-          onChange={setBasis}
+          onChange={(next) => {
+            setBasis(next);
+            setHoverId(null);
+          }}
           options={[
-            { id: "bucket", label: "By Bucket" },
-            { id: "assetClass", label: "By Asset Class" },
+            { id: "portfolio", label: "By portfolio" },
+            { id: "assetClass", label: "By asset class" },
           ]}
         />
       }
     >
-      {basis === "assetClass" ? (
-        <Muted className="max-w-md py-6 text-sm">
-          Asset class is not recorded on these holdings yet. Allocation by bucket is available now.
-        </Muted>
-      ) : chartSlices.length === 0 ? (
-        <Muted className="py-6 text-sm">No allocation yet. Add a statement period to see how the portfolio is split.</Muted>
+      {chartSlices.length === 0 ? (
+        <Muted className="py-6 text-sm">No allocation yet. Add a statement period to see the split.</Muted>
       ) : (
-        <div className="grid items-center gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
-          <div className="relative mx-auto size-[220px]">
-            <ChartContainer config={chartConfig} className="aspect-auto size-[220px]">
+        <div className="grid items-center gap-8 md:grid-cols-[200px_minmax(0,1fr)]">
+          <div className="relative mx-auto size-[200px]">
+            <ChartContainer config={chartConfig} className="aspect-auto size-[200px]">
               <PieChart>
                 <ChartTooltip
                   content={
@@ -380,21 +549,20 @@ function AllocationPanel({
                   nameKey="name"
                   cx="50%"
                   cy="50%"
-                  innerRadius={68}
-                  outerRadius={96}
+                  innerRadius={62}
+                  outerRadius={88}
                   paddingAngle={2}
                   strokeWidth={0}
                   onMouseLeave={() => setHoverId(null)}
                   onClick={(_, index) => {
                     const slice = chartSlices[index];
                     if (!slice) return;
-                    onSelect(selectedId === slice.id ? null : slice.id);
+                    onSelect(selectedId === slice.id ? null : slice);
                   }}
                 >
                   {chartSlices.map((slice) => {
                     const dimmed =
-                      (selectedId != null || hoverId != null) &&
-                      slice.id !== (hoverId ?? selectedId);
+                      (selectedId != null || hoverId != null) && slice.id !== (hoverId ?? selectedId);
                     return (
                       <Cell
                         key={slice.id}
@@ -410,15 +578,15 @@ function AllocationPanel({
             </ChartContainer>
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
               <span className="font-numeric text-lg font-semibold text-brand-primary">
-                {focus ? `${focus.pct.toFixed(0)}%` : formatCompactUsd(slices.reduce((sum, slice) => sum + slice.valueUsd, 0))}
+                {focus
+                  ? `${focus.pct.toFixed(0)}%`
+                  : formatCompactUsd(slices.reduce((sum, slice) => sum + slice.valueUsd, 0))}
               </span>
-              <span className="text-[11px] text-muted-foreground">
-                {focus ? focus.shortName : "Total"}
-              </span>
+              <span className="text-[11px] text-muted-foreground">{focus ? focus.name : "Total"}</span>
             </div>
           </div>
-          <ul className="flex flex-col">
-            {slices.map((slice) => {
+          <ul className="divide-y divide-border/50">
+            {visible.map((slice) => {
               const active = slice.id === selectedId;
               return (
                 <li key={slice.id}>
@@ -427,21 +595,17 @@ function AllocationPanel({
                     aria-pressed={active}
                     onMouseEnter={() => setHoverId(slice.id)}
                     onMouseLeave={() => setHoverId(null)}
-                    onClick={() => onSelect(active ? null : slice.id)}
+                    onClick={() => onSelect(active ? null : slice)}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left active:translate-y-px",
-                      active ? "bg-muted/70" : "hover:bg-muted/40",
+                      "flex w-full items-center gap-3 py-2.5 text-left active:translate-y-px",
+                      active && "bg-muted/40",
                     )}
                   >
-                    <span
-                      className="size-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: slice.color }}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <TextSmall className="block truncate font-medium">{slice.name}</TextSmall>
-                      <Muted className="text-xs">
-                        {formatCompactUsd(slice.valueUsd)} · {slice.pct.toFixed(0)}%
-                      </Muted>
+                    <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: slice.color }} />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{slice.name}</span>
+                    <span className="font-numeric text-sm">{formatCompactUsd(slice.valueUsd)}</span>
+                    <span className="w-12 text-right font-numeric text-sm text-muted-foreground">
+                      {slice.pct.toFixed(1)}%
                     </span>
                   </button>
                 </li>
@@ -450,124 +614,94 @@ function AllocationPanel({
           </ul>
         </div>
       )}
-    </Section>
+    </SectionBlock>
   );
 }
 
-function PortfolioPerformance({
+function PerformanceChart({
   clientId,
-  history,
+  rows,
   range,
   onRangeChange,
   mode,
   onModeChange,
-  benchmark = null,
+  hasDates,
+  historyCount,
 }: {
   clientId: string;
-  history: HistoryPoint[];
+  rows: ChartRow[];
   range: RangeId;
   onRangeChange: (range: RangeId) => void;
   mode: ChartMode;
   onModeChange: (mode: ChartMode) => void;
-  benchmark?: BenchmarkSeries | null;
+  hasDates: boolean;
+  historyCount: number;
 }) {
-  const windowed = sliceHistory(history, range);
-  const first = windowed[0];
-  const last = windowed[windowed.length - 1];
-  const gain = first && last && windowed.length >= 2 ? last.value - first.value : null;
-  const ret =
-    first && last && windowed.length >= 2 && first.value > 0
-      ? ((last.value - first.value) / first.value) * 100
-      : null;
-  const plotted = mode === "return" ? toReturnSeries(windowed) : windowed;
-  const benchmarkByMonth = new Map(
-    (benchmark ? (mode === "return" ? toReturnSeries(benchmark.points) : benchmark.points) : []).map(
-      (point) => [point.month, point.value],
-    ),
-  );
-  const chartData = plotted.map((point) => ({
-    month: point.month,
-    value: point.value,
-    benchmark: benchmarkByMonth.get(point.month),
-  }));
-  const hasBenchmark = chartData.some((point) => point.benchmark != null);
   const chartConfig = {
-    value: { label: mode === "return" ? "Return" : "Portfolio value", color: "#202356" },
-    benchmark: { label: benchmark?.label ?? "Benchmark", color: "#b2936b" },
+    value: { label: "Portfolio value", color: "#202356" },
+    returnPct: { label: "Return", color: "#202356" },
+    flow: { label: "Cash flow", color: "#b2936b" },
   } satisfies ChartConfig;
+  const windowGain =
+    rows.length >= 2 ? rows[rows.length - 1].value - rows[0].value - rows.reduce((sum, row) => sum + row.flow, 0) : null;
+  const windowReturn = rows.length >= 2 ? rows[rows.length - 1].returnPct : null;
+  const netFlow = rows.reduce((sum, row) => sum + row.flow, 0);
 
   return (
-    <Section
-      title="Portfolio Performance"
-      action={
+    <div className="mt-8">
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <Muted className="text-xs">
+            {mode === "value" && "Portfolio value"}
+            {mode === "return" && "Investment return"}
+            {mode === "flows" && "Contributions and withdrawals"}
+          </Muted>
+          <p className={cn("font-numeric text-xl font-semibold text-brand-primary", mode !== "value" && toneClass(mode === "return" ? windowReturn : netFlow))}>
+            {mode === "value" && (rows.length > 0 ? formatCompactUsd(rows[rows.length - 1].value) : "n/a")}
+            {mode === "return" && (windowGain == null ? "n/a" : `${formatCompactUsd(windowGain, true)} · ${signedPct(windowReturn)}`)}
+            {mode === "flows" && formatCompactUsd(netFlow, true)}
+          </p>
+          <Muted className="mt-0.5 text-xs">
+            {mode === "return"
+              ? hasDates
+                ? "Excludes contributions and withdrawals in this window."
+                : "This history has no dates, so cash flows could not be removed."
+              : mode === "flows"
+                ? "Bars are cash flow. The line is portfolio value, which includes those flows."
+                : "Value includes contributions and withdrawals. Use Return to see investment performance."}
+          </Muted>
+        </div>
         <Segmented
           label="Chart series"
           value={mode}
           onChange={onModeChange}
           options={[
-            { id: "value", label: "Portfolio Value" },
-            { id: "return", label: "Return %" },
+            { id: "value", label: "Portfolio value" },
+            { id: "return", label: "Return" },
+            { id: "flows", label: "Contributions & withdrawals" },
           ]}
         />
-      }
-    >
-      <div className="mb-4 flex flex-wrap items-end gap-x-8 gap-y-3">
-        <div>
-          <Muted className="text-xs">Current value</Muted>
-          <TextSmall className="font-numeric text-xl font-semibold text-brand-primary">
-            {last ? formatCompactUsd(last.value) : "n/a"}
-          </TextSmall>
-        </div>
-        <div>
-          <Muted className="text-xs">Gain / loss</Muted>
-          <TextSmall
-            className={cn(
-              "font-numeric text-xl font-semibold",
-              gain == null && "text-muted-foreground",
-              gain != null && gain > 0 && "text-emerald-700",
-              gain != null && gain < 0 && "text-destructive",
-            )}
-          >
-            {gain == null ? "n/a" : formatCompactUsd(gain, true)}
-          </TextSmall>
-        </div>
-        <div>
-          <Muted className="text-xs">Return</Muted>
-          <TextSmall
-            className={cn(
-              "font-numeric text-xl font-semibold",
-              ret == null && "text-muted-foreground",
-              ret != null && ret > 0 && "text-emerald-700",
-              ret != null && ret < 0 && "text-destructive",
-            )}
-          >
-            {ret == null ? "n/a" : `${ret > 0 ? "+" : ""}${ret.toFixed(1)}%`}
-          </TextSmall>
-        </div>
       </div>
 
-      {mode === "return" && windowed.length >= 2 && (first?.value ?? 0) <= 0 ? (
-        <Muted className="py-8 text-sm">
-          Return needs a starting value above zero in this window.
-        </Muted>
-      ) : windowed.length < 2 ? (
-        <Muted className="py-8 text-sm">
-          {history.length < 2
+      {rows.length < 2 ? (
+        <Muted className="py-10 text-sm">
+          {historyCount < 2
             ? "Portfolio trends appear once two statement periods are saved."
             : "Not enough statement history in this window."}
         </Muted>
       ) : (
-        <ChartContainer config={chartConfig} className="aspect-auto h-[240px] w-full">
-          <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        <ChartContainer config={chartConfig} className="aspect-auto h-[280px] w-full">
+          <ComposedChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id={`perf-${clientId}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#202356" stopOpacity={0.22} />
+                <stop offset="5%" stopColor="#202356" stopOpacity={0.18} />
                 <stop offset="95%" stopColor="#202356" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
             <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={8} minTickGap={28} />
             <YAxis
+              yAxisId="main"
               tickLine={false}
               axisLine={false}
               width={56}
@@ -575,37 +709,57 @@ function PortfolioPerformance({
                 mode === "return" ? `${Number(value).toFixed(0)}%` : formatChartCompactUsd(Number(value))
               }
             />
+            {mode === "flows" ? (
+              <YAxis
+                yAxisId="flow"
+                orientation="right"
+                tickLine={false}
+                axisLine={false}
+                width={52}
+                tickFormatter={(value) => formatChartCompactUsd(Number(value))}
+              />
+            ) : null}
             <ChartTooltip
               content={
                 <ChartTooltipContent
-                  formatter={(value) =>
-                    mode === "return"
-                      ? `${Number(value).toFixed(1)}%`
-                      : formatChartUsd(Number(value))
-                  }
+                  formatter={(value, name) => {
+                    const amount = Number(value);
+                    if (name === "returnPct" || name === "Return") return `${amount.toFixed(1)}%`;
+                    return formatChartUsd(amount);
+                  }}
                 />
               }
             />
-            <Area
-              type="monotone"
-              dataKey="value"
-              stroke="var(--color-value)"
-              strokeWidth={2}
-              fill={`url(#perf-${clientId})`}
-              dot={{ r: 3, fill: "var(--color-value)", strokeWidth: 0 }}
-              activeDot={{ r: 4, strokeWidth: 0 }}
-            />
-            {hasBenchmark ? (
-              <Line
-                type="monotone"
-                dataKey="benchmark"
-                stroke="var(--color-benchmark)"
-                strokeWidth={1.5}
-                dot={false}
-                connectNulls
-              />
+            {mode === "flows" ? (
+              <Bar yAxisId="flow" dataKey="flow" radius={[2, 2, 0, 0]} maxBarSize={18}>
+                {rows.map((row, index) => (
+                  <Cell key={`${row.month}-${index}`} fill={row.flow >= 0 ? "#829850" : "#c45c57"} />
+                ))}
+              </Bar>
             ) : null}
-          </AreaChart>
+            {mode === "return" ? (
+              <Line
+                yAxisId="main"
+                type="monotone"
+                dataKey="returnPct"
+                stroke="var(--color-returnPct)"
+                strokeWidth={2}
+                dot={{ r: 3, fill: "var(--color-returnPct)", strokeWidth: 0 }}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+              />
+            ) : (
+              <Area
+                yAxisId="main"
+                type="monotone"
+                dataKey="value"
+                stroke="var(--color-value)"
+                strokeWidth={2}
+                fill={mode === "value" ? `url(#perf-${clientId})` : "transparent"}
+                dot={{ r: 3, fill: "var(--color-value)", strokeWidth: 0 }}
+                activeDot={{ r: 4, strokeWidth: 0 }}
+              />
+            )}
+          </ComposedChart>
         </ChartContainer>
       )}
 
@@ -627,7 +781,7 @@ function PortfolioPerformance({
           </button>
         ))}
       </div>
-    </Section>
+    </div>
   );
 }
 
@@ -645,16 +799,17 @@ export function PortfolioOverview({
   onRefresh?: () => void;
 }) {
   const statementHref = `/advisors/dashboard/clients/${clientId}/statement`;
-  const [section, setSection] = useState<SectionId>("Overview");
-  const [selectedBucket, setSelectedBucket] = useState<PortfolioBucket | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focusBuckets, setFocusBuckets] = useState<PortfolioBucket[] | null>(null);
+  const [focusLabel, setFocusLabel] = useState<string | null>(null);
   const [range, setRange] = useState<RangeId>("All");
   const [chartMode, setChartMode] = useState<ChartMode>("value");
   const [holdingOpen, setHoldingOpen] = useState(false);
   const [holdingFormKey, setHoldingFormKey] = useState(0);
   const [valuesOpen, setValuesOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
+  const [activityExpanded, setActivityExpanded] = useState(false);
   const [transactions, setTransactions] = useState<WealthTransaction[]>([]);
-  const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
   const [assetRefresh, setAssetRefresh] = useState(0);
   const [assetState, setAssetState] = useState<{
     clientId: string;
@@ -662,7 +817,6 @@ export function PortfolioOverview({
     assets: TrackedAsset[];
     error: string | null;
   } | null>(null);
-  const [selectedHoldingId, setSelectedHoldingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/clients/${clientId}/transactions`)
@@ -700,416 +854,357 @@ export function PortfolioOverview({
     return () => controller.abort();
   }, [clientId, assetRefresh]);
 
-  const slices = useMemo(
-    () => buildSlices(portfolio, snapshots),
-    [portfolio, snapshots],
-  );
-  const breakdown = useMemo(
-    () => buildBreakdown(slices, snapshots),
-    [slices, snapshots],
-  );
+  const slices = useMemo(() => buildPortfolioSlices(portfolio, snapshots), [portfolio, snapshots]);
+  const breakdown = useMemo(() => buildBreakdown(slices, snapshots), [slices, snapshots]);
   const total = portfolio?.totalUSD ?? slices.reduce((sum, slice) => sum + slice.valueUsd, 0);
-  const cash = slices.find((slice) => slice.id === "coa")?.valueUsd ?? 0;
-  const invested = slices
-    .filter((slice) => slice.id !== "coa")
-    .reduce((sum, slice) => sum + slice.valueUsd, 0);
-  const change = heroChange(portfolio);
-  const narrative = periodNarrative(portfolio);
+  const history = portfolio?.history ?? [];
+  const periodPerf = useMemo(
+    () => statementPerformance(portfolio, latestPeriod, transactions),
+    [portfolio, latestPeriod, transactions],
+  );
+  const ytdPerf = useMemo(
+    () => rangePerformance(history, transactions, "YTD"),
+    [history, transactions],
+  );
+  const chartRows = useMemo(
+    () => buildChartRows(history, transactions, range),
+    [history, transactions, range],
+  );
   const assetsReady =
-    assetState != null &&
-    assetState.clientId === clientId &&
-    assetState.refresh === assetRefresh;
+    assetState != null && assetState.clientId === clientId && assetState.refresh === assetRefresh;
   const assets = assetsReady ? assetState.assets : [];
   const assetsLoading = !assetsReady;
   const assetsError = assetsReady ? assetState.error : null;
-  const holdingsTotal = assets.reduce((sum, asset) => sum + asset.marketValueUsd, 0);
-  const visibleAssets = selectedBucket
-    ? assets.filter((asset) => asset.bucket === selectedBucket)
+  const visibleAssets = focusBuckets
+    ? assets.filter((asset) => focusBuckets.includes(asset.bucket))
     : assets;
-  const selectedHolding = assets.find((asset) => asset.id === selectedHoldingId) ?? null;
-  const keyError = assets.some((asset) => asset.priceError?.includes("API key"));
-  const filteredActivity = transactions.filter((tx) => {
-    if (activityFilter === "contributions") return tx.amount_usd > 0;
-    if (activityFilter === "withdrawals") return tx.amount_usd < 0;
-    return true;
-  });
+  const sortedVisibleAssets = useMemo(
+    () => [...visibleAssets].sort((a, b) => b.marketValueUsd - a.marketValueUsd),
+    [visibleAssets],
+  );
+  const valuePage = usePagedRows(breakdown, { resetKey: String(breakdown.length) });
+  const assetPage = usePagedRows(sortedVisibleAssets, { resetKey: focusLabel ?? "all" });
+  const statementDate = latestPeriod ? formatStatementDate(latestPeriod.period_end) : null;
+  const lastUpdated =
+    history.filter((point) => point.recordedOn).at(-1)?.recordedOn ?? latestPeriod?.period_end ?? null;
+  const activity = [...transactions].sort((a, b) => b.occurred_on.localeCompare(a.occurred_on));
+  const visibleActivity = activityExpanded ? activity : activity.slice(0, 5);
+  const returnsAdjusted = Boolean(periodPerf?.adjusted || ytdPerf?.adjusted);
+
+  function focusSlice(slice: AllocSlice | null) {
+    if (!slice) {
+      setSelectedId(null);
+      setFocusBuckets(null);
+      setFocusLabel(null);
+      return;
+    }
+    setSelectedId(slice.id);
+    setFocusBuckets(slice.buckets.length > 0 ? slice.buckets : null);
+    setFocusLabel(slice.name);
+    document.getElementById("tracked-investments")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   function openAddHolding() {
     setHoldingFormKey((value) => value + 1);
     setHoldingOpen(true);
   }
 
-  const showHoldings =
-    section === "Overview" ||
-    section === "Holdings" ||
-    (section === "Allocation" && selectedBucket != null);
-  const showAllocation = section === "Overview" || section === "Allocation";
-  const showPerformance = section === "Overview" || section === "Performance";
-  const showBreakdown = section === "Overview" || section === "Allocation";
-  const showActivity = section === "Overview" || section === "Activity";
-
   return (
-    <div className="flex flex-col gap-4 pb-12">
-      <SurfaceCard>
-        <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-col gap-8 pb-12">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className={advisorSurface.pageTitle}>Portfolio</h2>
+          <Muted className="mt-1 text-[13px]">
+            {latestPeriod
+              ? `${latestPeriod.label} · ${formatStatementDate(latestPeriod.period_start)} to ${formatStatementDate(latestPeriod.period_end)}`
+              : "No statement period yet"}
+          </Muted>
+          <Muted className="text-[13px]">
+            {lastUpdated ? `Last updated ${formatStatementDate(lastUpdated)}` : "Not updated yet"}
+          </Muted>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href={statementHref} className="text-sm font-medium text-brand-primary hover:underline">
+            Statement data
+          </Link>
+          <Button type="button" variant="outline" size="sm" onClick={() => setValuesOpen(true)}>
+            Edit statement values
+          </Button>
+        </div>
+      </header>
+
+      <section>
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1.5fr)_minmax(16rem,1fr)] lg:items-end">
           <div>
-            <Overline>Portfolio</Overline>
-            <TextSmall className="mt-2 font-medium">
-              {latestPeriod ? "Latest statement period" : "No statement period yet"}
-            </TextSmall>
-            <Muted className="text-[13px]">
-              {latestPeriod
-                ? `${latestPeriod.label} · ${formatStatementDate(latestPeriod.period_start)} to ${formatStatementDate(latestPeriod.period_end)}`
-                : "Add a statement period to start tracking value."}
-            </Muted>
+            <Muted className="text-xs">Total portfolio value</Muted>
+            <Numeric className="mt-1 block text-[2.75rem] text-brand-primary sm:text-5xl">
+              {formatCompactUsd(total)}
+            </Numeric>
+            {periodPerf ? (
+              <p className={cn("mt-2 font-numeric text-sm font-medium", toneClass(periodPerf.gain))}>
+                {formatCompactUsd(periodPerf.gain, true)}
+                <span className="mx-1.5 text-muted-foreground">·</span>
+                {signedPct(periodPerf.pct)} this period
+              </p>
+            ) : (
+              <Muted className="mt-2 text-sm">Add a statement period to show performance.</Muted>
+            )}
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button type="button" variant="outline" size="sm">
-                  More actions
-                </Button>
-              }
+          <div className="grid grid-cols-2 gap-6">
+            <PerfStat label="Period return" gain={periodPerf?.gain ?? null} pct={periodPerf?.pct ?? null} />
+            <PerfStat
+              label="YTD return"
+              gain={ytdPerf?.gain ?? null}
+              pct={ytdPerf?.pct ?? portfolio?.ytdPct ?? null}
             />
-            <DropdownMenuContent align="end" className="min-w-56" sideOffset={6}>
-              <DropdownMenuItem onClick={() => setValuesOpen(true)}>
-                Update portfolio values
-              </DropdownMenuItem>
-              <DropdownMenuItem render={<Link href={statementHref} />}>
-                Import statement data
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={openAddHolding}>Add holding</DropdownMenuItem>
-              <DropdownMenuItem render={<Link href={statementHref} />}>
-                Edit allocation
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setAuditOpen(true)}>
-                View audit history
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        <div className="flex flex-col items-center px-2 py-8 text-center">
-          <Numeric className="text-[2.75rem] text-brand-primary sm:text-5xl">
-            {formatCompactUsd(total)}
-          </Numeric>
-          <Muted className="mt-2 text-xs">Total portfolio value</Muted>
-          {change ? (
-            <p
-              className={cn(
-                "mt-2 font-numeric text-sm font-medium",
-                change.tone === "up" && "text-emerald-700",
-                change.tone === "down" && "text-destructive",
-                change.tone === "flat" && "text-muted-foreground",
-              )}
-            >
-              {change.text}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="mx-auto grid w-full max-w-xl grid-cols-3 gap-3 border-t border-border/60 pt-4">
-          <div className="text-center">
-            <Muted className="text-[11px]">Invested capital</Muted>
-            <TextSmall className="mt-1 block font-numeric font-medium">
-              {formatCompactUsd(invested)}
-            </TextSmall>
-          </div>
-          <div className="text-center">
-            <Muted className="text-[11px]">YTD return</Muted>
-            <TextSmall className="mt-1 block font-numeric font-medium">
-              {portfolio
-                ? `${portfolio.ytdPct > 0 ? "+" : ""}${portfolio.ytdPct.toFixed(1)}%`
-                : "n/a"}
-            </TextSmall>
-          </div>
-          <div className="text-center">
-            <Muted className="text-[11px]">Cash position</Muted>
-            <TextSmall className="mt-1 block font-numeric font-medium">
-              {formatCompactUsd(cash)}
-            </TextSmall>
           </div>
         </div>
-        {narrative ? (
-          <p className="mx-auto mt-4 max-w-md text-center text-sm text-muted-foreground">
-            {narrative}
-          </p>
-        ) : null}
+        <Muted className="mt-3 max-w-2xl text-xs">
+          {returnsAdjusted
+            ? "Returns exclude contributions and withdrawals. Those cash flows are in the chart and the timeline below."
+            : "Returns follow the statement change in value. Cash flows are listed separately once they are recorded."}
+        </Muted>
 
-        <nav
-          id="portfolio-sections"
-          className="mt-6 flex gap-1 overflow-x-auto border-b border-border/70"
-          aria-label="Portfolio sections"
-        >
-          {SECTIONS.map((item) => {
-            const active = item === section;
-            return (
-              <button
-                key={item}
-                type="button"
-                aria-pressed={active}
-                onClick={() => setSection(item)}
-                className={cn(
-                  "relative whitespace-nowrap px-3 py-2 text-sm active:translate-y-px",
-                  active
-                    ? "font-semibold text-brand-primary"
-                    : "font-medium text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {item}
-                <span
-                  className={cn(
-                    "absolute inset-x-3 bottom-0 h-0.5 origin-left bg-brand-accent transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none",
-                    active ? "scale-x-100" : "scale-x-0",
-                  )}
-                />
-              </button>
-            );
-          })}
-        </nav>
-      </SurfaceCard>
-
-      {showPerformance ? (
-        <PortfolioPerformance
+        <PerformanceChart
           clientId={clientId}
-          history={portfolio?.history ?? []}
+          rows={chartRows}
           range={range}
           onRangeChange={setRange}
           mode={chartMode}
           onModeChange={setChartMode}
+          hasDates={history.some((point) => point.recordedOn)}
+          historyCount={history.length}
         />
-      ) : null}
+      </section>
 
-      {showAllocation ? (
-        <AllocationPanel
-          slices={slices}
-          selectedId={selectedBucket}
-          onSelect={setSelectedBucket}
-        />
-      ) : null}
+      <AllocationPanel slices={slices} selectedId={selectedId} onSelect={focusSlice} />
 
-      {showHoldings ? (
-        <Section
-          title="Holdings"
+      {breakdown.length > 0 ? (
+        <SectionBlock
+          title="Portfolio values"
           description={
-            selectedBucket
-              ? `Listed assets inside ${BUCKET_LABELS[selectedBucket]}.`
-              : "Listed assets inside a portfolio bucket. Value is quantity times the market price."
-          }
-          action={
-            <Button type="button" size="sm" onClick={openAddHolding}>
-              <Plus className="size-4" />
-              Add holding
-            </Button>
+            statementDate
+              ? `Statement value as of ${statementDate}. Select a portfolio to see its investments.`
+              : "Select a portfolio to see its investments."
           }
         >
-          {assetsLoading ? (
-            <div className="flex flex-col gap-2">
-              <Skeleton className="h-4 w-40" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
-          ) : assetsError ? (
-            <Muted>{assetsError}</Muted>
-          ) : assets.length === 0 ? (
-            <div className="flex flex-col items-start gap-2 py-4">
-              <h4 className="font-heading text-base font-semibold text-brand-primary">
-                No individual holdings yet
-              </h4>
-              <Muted className="max-w-md text-sm">
-                Track stocks, ETFs, funds, and other listed assets to automatically calculate
-                their current market value.
-              </Muted>
-              <Button type="button" size="sm" className="mt-2" onClick={openAddHolding}>
-                <Plus className="size-4" />
-                Add holding
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {keyError ? (
-                <Muted className="text-sm">
-                  Finnhub rejected the API key, so live prices could not be loaded. Saved values
-                  are shown instead.
-                </Muted>
-              ) : null}
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Muted className="text-sm">
-                  {visibleAssets.length} {visibleAssets.length === 1 ? "holding" : "holdings"} ·{" "}
-                  {formatCompactUsd(
-                    visibleAssets.reduce((sum, asset) => sum + asset.marketValueUsd, 0),
-                  )}{" "}
-                  total value
-                </Muted>
-                {selectedBucket ? (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedBucket(null)}
-                    className="text-xs font-medium text-brand-primary hover:underline"
-                  >
-                    Show all buckets
-                  </button>
-                ) : null}
-              </div>
-
-              {visibleAssets.length === 0 ? (
-                <Muted className="text-sm">No holdings in this bucket yet.</Muted>
-              ) : section === "Holdings" ? (
-                <HoldingsTable
-                  assets={visibleAssets}
-                  total={total > 0 ? total : holdingsTotal}
-                  selectedId={selectedHoldingId}
-                  onSelect={setSelectedHoldingId}
-                />
-              ) : (
-                <CompactHoldings
-                  assets={[...visibleAssets]
-                    .sort((a, b) => b.marketValueUsd - a.marketValueUsd)
-                    .slice(0, 5)}
-                  onOpen={(id) => {
-                    setSelectedHoldingId(id);
-                    setSection("Holdings");
-                  }}
-                />
-              )}
-
-              {section === "Overview" && visibleAssets.length > 5 ? (
-                <button
-                  type="button"
-                  onClick={() => setSection("Holdings")}
-                  className="self-start text-sm font-medium text-brand-primary hover:underline"
-                >
-                  View all holdings
-                </button>
-              ) : null}
-
-              {section === "Holdings" && selectedHolding ? (
-                <div className="border-t border-border/60 pt-4">
-                  <TextSmall className="font-medium">
-                    {selectedHolding.name} ({selectedHolding.ticker})
-                  </TextSmall>
-                  <Muted className="text-xs">
-                    {selectedHolding.bucketLabel}
-                    {selectedHolding.priceError && !keyError
-                      ? `. ${selectedHolding.priceError}`
-                      : ""}
-                  </Muted>
-                  {selectedHolding.history.length >= 2 ? (
-                    <div className="mt-3">
-                      <AssetAreaChart
-                        data={selectedHolding.history}
-                        color="#202356"
-                        gradientId={`holding-${selectedHolding.id}`}
-                        height={200}
-                        yAxisLabel="Value (USD)"
-                        seriesLabel={selectedHolding.ticker}
-                      />
-                    </div>
-                  ) : (
-                    <Muted className="mt-2 text-sm">
-                      {selectedHolding.live
-                        ? "Not enough price history yet to chart this holding."
-                        : "Add a quantity to price this holding from the market."}
-                    </Muted>
-                  )}
-                </div>
-              ) : null}
-            </div>
-          )}
-        </Section>
-      ) : null}
-
-      {showBreakdown && breakdown.length > 0 ? (
-        <Section
-          title="Portfolio Breakdown"
-          description={
-            latestPeriod
-              ? `${latestPeriod.label}. Each row is a strategy, not an individual asset.`
-              : "Each row is a strategy, not an individual asset."
-          }
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-sm">
-              <thead>
-                <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="pb-2 pr-4 font-medium">Bucket</th>
-                  <th className="pb-2 pr-4 text-right font-medium">Current value</th>
-                  <th className="pb-2 pr-4 text-right font-medium">Change</th>
-                  <th className="pb-2 font-medium">Allocation</th>
-                </tr>
-              </thead>
-              <tbody>
-                {breakdown.map((row) => (
-                  <tr key={row.id} className="border-b border-border/50 last:border-0">
-                    <td className="py-3 pr-4">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="size-2.5 shrink-0 rounded-full"
-                          style={{ backgroundColor: row.color }}
-                        />
-                        <TextSmall className="font-medium">{row.shortName}</TextSmall>
-                      </div>
-                    </td>
-                    <td className="py-3 pr-4 text-right font-numeric font-medium">
-                      {formatCompactUsd(row.valueUsd)}
-                    </td>
-                    <td className="py-3 pr-4 text-right">
-                      {row.changeUsd == null ? (
-                        <span className="text-xs text-muted-foreground">n/a</span>
-                      ) : (
-                        <div className="flex flex-col items-end">
-                          <span
-                            className={cn(
-                              "font-numeric font-medium",
-                              row.changeUsd > 0 && "text-emerald-700",
-                              row.changeUsd < 0 && "text-destructive",
-                              row.changeUsd === 0 && "text-muted-foreground",
-                            )}
-                          >
-                            {formatCompactUsd(row.changeUsd, true)}
-                          </span>
-                          <ChangeText value={row.periodPct} />
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
-                          <div
-                            className="h-full rounded-full bg-brand-primary/80"
-                            style={{ width: `${Math.min(100, Math.max(0, row.pct))}%` }}
-                          />
-                        </div>
-                        <span className="font-numeric text-xs text-muted-foreground">
-                          {row.pct.toFixed(0)}%
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div>
+            <Table className="min-w-[520px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead><ColumnLabel>Portfolio</ColumnLabel></TableHead>
+                  <TableHead className="text-right"><ColumnLabel align="right">Value</ColumnLabel></TableHead>
+                  <TableHead className="text-right"><ColumnLabel align="right">Return</ColumnLabel></TableHead>
+                  <TableHead className="text-right"><ColumnLabel align="right">Change</ColumnLabel></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {valuePage.rows.map((row) => {
+                  const active = row.id === selectedId;
+                  return (
+                    <TableRow key={row.id} data-state={active ? "selected" : undefined}>
+                      <TableCell>
+                        <button
+                          type="button"
+                          className="flex items-center gap-2 text-left active:translate-y-px"
+                          onClick={() => focusSlice(active ? null : row)}
+                        >
+                          <CategoryPill tone={sliceTone(row.id)}>{row.name}</CategoryPill>
+                        </button>
+                      </TableCell>
+                      <TableCell className="text-right font-numeric font-medium">
+                        {formatCompactUsd(row.valueUsd)}
+                      </TableCell>
+                      <TableCell className={cn("text-right font-numeric", toneClass(row.periodPct))}>
+                        {signedPct(row.periodPct)}
+                      </TableCell>
+                      <TableCell className={cn("text-right font-numeric", toneClass(row.changeUsd))}>
+                        {row.changeUsd == null ? "n/a" : formatCompactUsd(row.changeUsd, true)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            <TableFooterBar
+              total={valuePage.total}
+              page={valuePage.page}
+              pageCount={valuePage.pageCount}
+              pageSize={valuePage.pageSize}
+              onPageChange={valuePage.setPage}
+              onPageSizeChange={valuePage.setPageSize}
+            />
           </div>
-        </Section>
+        </SectionBlock>
       ) : null}
 
-      {showActivity ? (
-        <ActivitySection
-          transactions={filteredActivity}
-          filter={activityFilter}
-          onFilter={setActivityFilter}
-          expanded={section === "Activity"}
-          onExpand={() => setSection("Activity")}
-          statementHref={statementHref}
-        />
-      ) : null}
+      <SectionBlock
+        id="tracked-investments"
+        title="Tracked investments"
+        description={
+          focusLabel
+            ? `Showing investments in ${focusLabel}.`
+            : "Listed securities priced from the market. Other holdings stay on the statement."
+        }
+        action={
+          <Button type="button" size="sm" onClick={openAddHolding}>
+            <Plus className="size-4" />
+            Add investment
+          </Button>
+        }
+      >
+        {focusLabel ? (
+          <button
+            type="button"
+            onClick={() => focusSlice(null)}
+            className="mb-3 text-xs font-medium text-brand-primary hover:underline"
+          >
+            Show all portfolios
+          </button>
+        ) : null}
+        {assetsLoading ? (
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : assetsError ? (
+          <Muted>{assetsError}</Muted>
+        ) : assets.length === 0 ? (
+          <div className="py-2">
+            <TextSmall className="font-medium">No tracked investments yet</TextSmall>
+            <Muted className="mt-1 max-w-md text-sm">
+              Add a listed security to follow its market price. Property, private funds, and cash stay as statement values.
+            </Muted>
+          </div>
+        ) : visibleAssets.length === 0 ? (
+          <Muted className="text-sm">
+            No market-priced investments in {focusLabel}. This portfolio&apos;s value is the statement total.
+          </Muted>
+        ) : (
+          <div>
+            <Table className="min-w-[860px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead><ColumnLabel>Asset</ColumnLabel></TableHead>
+                  <TableHead><ColumnLabel>Ticker</ColumnLabel></TableHead>
+                  <TableHead><ColumnLabel>Portfolio</ColumnLabel></TableHead>
+                  <TableHead className="text-right"><ColumnLabel align="right">Quantity</ColumnLabel></TableHead>
+                  <TableHead className="text-right"><ColumnLabel align="right">Current value</ColumnLabel></TableHead>
+                  <TableHead className="text-right"><ColumnLabel align="right">Cost basis</ColumnLabel></TableHead>
+                  <TableHead className="text-right"><ColumnLabel align="right">Gain / loss</ColumnLabel></TableHead>
+                  <TableHead className="text-right"><ColumnLabel align="right">Return</ColumnLabel></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {assetPage.rows.map((asset) => {
+                  const gain =
+                    asset.costBasisUsd > 0 ? asset.marketValueUsd - asset.costBasisUsd : null;
+                  const source = valuationFor(asset, statementDate);
+                  return (
+                    <TableRow key={asset.id} className="align-top">
+                      <TableCell className="whitespace-normal">
+                        <span className="font-medium">{asset.name}</span>
+                        <ValuationSource kind={source.kind} updated={source.updated} />
+                      </TableCell>
+                      <TableCell>
+                        <CategoryPill tone="sky">{asset.ticker}</CategoryPill>
+                      </TableCell>
+                      <TableCell>
+                        <CategoryPill tone={bucketPillTone(asset.bucket)}>
+                          {bucketPillLabel(asset.bucket)}
+                        </CategoryPill>
+                      </TableCell>
+                      <TableCell className="text-right font-numeric">{quantityLabel(asset)}</TableCell>
+                      <TableCell className="text-right font-numeric font-medium">
+                        {formatUsd(asset.marketValueUsd)}
+                      </TableCell>
+                      <TableCell className="text-right font-numeric text-muted-foreground">
+                        {asset.costBasisUsd > 0 ? formatUsd(asset.costBasisUsd) : "n/a"}
+                      </TableCell>
+                      <TableCell className={cn("text-right font-numeric", toneClass(gain))}>
+                        {gain == null ? "n/a" : formatCompactUsd(gain, true)}
+                      </TableCell>
+                      <TableCell className={cn("text-right font-numeric", toneClass(gainPct(asset)))}>
+                        {signedPct(gainPct(asset))}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            <TableFooterBar
+              total={assetPage.total}
+              page={assetPage.page}
+              pageCount={assetPage.pageCount}
+              pageSize={assetPage.pageSize}
+              onPageChange={assetPage.setPage}
+              onPageSizeChange={assetPage.setPageSize}
+            />
+          </div>
+        )}
+      </SectionBlock>
+
+      <SectionBlock
+        title="Contributions & withdrawals"
+        description="Cash moving into and out of the portfolio. This is not investment performance."
+        action={
+          activity.length > 5 && !activityExpanded ? (
+            <button
+              type="button"
+              onClick={() => setActivityExpanded(true)}
+              className="text-sm font-medium text-brand-primary hover:underline"
+            >
+              View all
+            </button>
+          ) : (
+            <Link href={statementHref} className="text-sm font-medium text-brand-primary hover:underline">
+              Edit in statement data
+            </Link>
+          )
+        }
+      >
+        {visibleActivity.length === 0 ? (
+          <Muted className="text-sm">No contributions or withdrawals recorded yet.</Muted>
+        ) : (
+          <ol className="relative">
+            {visibleActivity.map((tx) => {
+              const meta = activityMeta(tx);
+              return (
+                <li key={tx.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-3 border-b border-border/50 py-3 last:border-0">
+                  <span
+                    className={cn(
+                      "mt-1.5 size-2 rounded-full",
+                      meta.tone === "in" && "bg-emerald-600",
+                      meta.tone === "out" && "bg-destructive/80",
+                      meta.tone === "neutral" && "bg-[#b2936b]",
+                    )}
+                  />
+                  <span className="min-w-0">
+                    <TextSmall className="font-medium">{tx.description}</TextSmall>
+                    <Muted className="text-xs">
+                      {formatStatementDate(tx.occurred_on)}
+                      {" · "}
+                      {meta.label}
+                      {tx.bucket ? ` · ${SHORT_BUCKET[tx.bucket]}` : ""}
+                    </Muted>
+                  </span>
+                  <span className={cn("font-numeric text-sm font-medium", toneClass(tx.amount_usd))}>
+                    {formatCompactUsd(tx.amount_usd, true)}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </SectionBlock>
 
       <Sheet open={holdingOpen} onOpenChange={setHoldingOpen}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-md">
           <SheetHeader className="border-b border-border/60">
-            <SheetTitle>Add holding</SheetTitle>
+            <SheetTitle>Add investment</SheetTitle>
             <SheetDescription>
-              Search for a listed asset. Current market value is quantity times the market price.
+              Search for a listed security. Current value follows the market price.
             </SheetDescription>
           </SheetHeader>
           <div className="px-4 pb-6">
@@ -1118,8 +1213,9 @@ export function PortfolioOverview({
                 key={holdingFormKey}
                 clientId={clientId}
                 embedded
-                onSaved={() => {
+                onSaved={(result) => {
                   setAssetRefresh((value) => value + 1);
+                  if (!result?.warning) setHoldingOpen(false);
                   onRefresh?.();
                 }}
               />
@@ -1131,19 +1227,29 @@ export function PortfolioOverview({
       <Sheet open={valuesOpen} onOpenChange={setValuesOpen}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           <SheetHeader className="border-b border-border/60">
-            <SheetTitle>Update portfolio values</SheetTitle>
+            <SheetTitle>Edit statement values</SheetTitle>
             <SheetDescription>
-              For property, private funds, cash, and anything that is not on the trackable list.
-              A note is required so the change is written to the audit trail.
+              For property, private funds, cash, and anything without a market price. The reason is written to the audit trail.
             </SheetDescription>
           </SheetHeader>
           <div className="px-4 pb-6">
+            <button
+              type="button"
+              className="mb-4 text-sm font-medium text-brand-primary hover:underline"
+              onClick={() => setAuditOpen(true)}
+            >
+              View audit history
+            </button>
             {valuesOpen ? (
               <PortfolioQuickUpdate
                 clientId={clientId}
                 snapshots={snapshots}
+                periodEnd={latestPeriod?.period_end}
                 embedded
-                onSaved={onRefresh}
+                onSaved={() => {
+                  setValuesOpen(false);
+                  onRefresh?.();
+                }}
               />
             ) : null}
           </div>
@@ -1162,238 +1268,5 @@ export function PortfolioOverview({
         </SheetContent>
       </Sheet>
     </div>
-  );
-}
-
-function CompactHoldings({
-  assets,
-  onOpen,
-}: {
-  assets: TrackedAsset[];
-  onOpen: (id: string) => void;
-}) {
-  return (
-    <ul>
-      {assets.map((asset) => {
-        const kind = holdingKind(asset.ticker);
-        return (
-          <li key={asset.id} className="border-b border-border/50 last:border-0">
-            <button
-              type="button"
-              onClick={() => onOpen(asset.id)}
-              className="flex w-full items-center gap-3 py-3 text-left hover:bg-muted/30"
-            >
-              <span className="min-w-0 flex-1">
-                <TextSmall className="block truncate font-medium">{asset.name}</TextSmall>
-                <Muted className="text-xs">
-                  {kind ? `${kind} · ${asset.bucketLabel}` : asset.bucketLabel}
-                </Muted>
-              </span>
-              <span className="text-right">
-                <TextSmall className="block font-numeric font-medium">
-                  {formatCompactUsd(asset.marketValueUsd)}
-                </TextSmall>
-                <ChangeText value={gainPct(asset)} />
-              </span>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function HoldingsTable({
-  assets,
-  total,
-  selectedId,
-  onSelect,
-}: {
-  assets: TrackedAsset[];
-  total: number;
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-}) {
-  const groups = (Object.keys(SHORT_BUCKET) as PortfolioBucket[])
-    .map((bucket) => ({
-      bucket,
-      rows: assets
-        .filter((asset) => asset.bucket === bucket)
-        .sort((a, b) => b.marketValueUsd - a.marketValueUsd),
-    }))
-    .filter((group) => group.rows.length > 0)
-    .sort((a, b) => {
-      const aValue = a.rows.reduce((sum, row) => sum + row.marketValueUsd, 0);
-      const bValue = b.rows.reduce((sum, row) => sum + row.marketValueUsd, 0);
-      return bValue - aValue;
-    });
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[760px] text-sm">
-        <thead>
-          <tr className="border-b text-left text-xs text-muted-foreground">
-            <th className="pb-2 pr-3 font-medium">Asset</th>
-            <th className="pb-2 pr-3 font-medium">Type</th>
-            <th className="pb-2 pr-3 text-right font-medium">Quantity</th>
-            <th className="pb-2 pr-3 text-right font-medium">Current price</th>
-            <th className="pb-2 pr-3 text-right font-medium">Current value</th>
-            <th className="pb-2 pr-3 text-right font-medium">Gain / loss</th>
-            <th className="pb-2 text-right font-medium">Allocation</th>
-          </tr>
-        </thead>
-        <tbody>
-          {groups.map((group) => (
-            <Fragment key={group.bucket}>
-              <tr className="bg-muted/30">
-                <td colSpan={7} className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                  {BUCKET_LABELS[group.bucket]}
-                </td>
-              </tr>
-              {group.rows.map((asset) => {
-                const share = total > 0 ? (asset.marketValueUsd / total) * 100 : null;
-                const active = asset.id === selectedId;
-                return (
-                  <tr
-                    key={asset.id}
-                    tabIndex={0}
-                    onClick={() => onSelect(asset.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onSelect(asset.id);
-                      }
-                    }}
-                    className={cn(
-                      "cursor-pointer border-b border-border/50 last:border-0",
-                      active && "bg-muted/40",
-                    )}
-                  >
-                    <td className="py-2.5 pr-3">
-                      <TextSmall className="font-medium">{asset.name}</TextSmall>
-                      <Muted className="text-xs">{asset.ticker}</Muted>
-                    </td>
-                    <td className="py-2.5 pr-3 text-muted-foreground">
-                      {holdingKind(asset.ticker) ?? "n/a"}
-                    </td>
-                    <td className="py-2.5 pr-3 text-right font-numeric">{quantityLabel(asset)}</td>
-                    <td className="py-2.5 pr-3 text-right font-numeric">
-                      {formatPrice(asset.priceUsd)}
-                    </td>
-                    <td className="py-2.5 pr-3 text-right font-numeric font-medium">
-                      {formatUsd(asset.marketValueUsd)}
-                    </td>
-                    <td className="py-2.5 pr-3 text-right">
-                      <ChangeText value={gainPct(asset)} />
-                    </td>
-                    <td className="py-2.5 text-right font-numeric text-muted-foreground">
-                      {share == null ? "n/a" : `${share.toFixed(1)}%`}
-                    </td>
-                  </tr>
-                );
-              })}
-            </Fragment>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function ActivitySection({
-  transactions,
-  filter,
-  onFilter,
-  expanded,
-  onExpand,
-  statementHref,
-}: {
-  transactions: WealthTransaction[];
-  filter: ActivityFilter;
-  onFilter: (filter: ActivityFilter) => void;
-  expanded: boolean;
-  onExpand: () => void;
-  statementHref: string;
-}) {
-  const limit = expanded ? 8 : 4;
-  const visible = transactions.slice(0, limit);
-  const remaining = transactions.length - visible.length;
-
-  return (
-    <Section
-      title="Recent Activity"
-      action={
-        expanded ? (
-          <Link href={statementHref} className="text-sm font-medium text-brand-primary hover:underline">
-            Edit in statement data
-          </Link>
-        ) : (
-          <button
-            type="button"
-            onClick={onExpand}
-            className="text-sm font-medium text-brand-primary hover:underline"
-          >
-            View all activity
-          </button>
-        )
-      }
-    >
-      <div className="mb-2">
-        <Segmented
-          label="Activity filter"
-          value={filter}
-          onChange={onFilter}
-          options={[
-            { id: "all", label: "All" },
-            { id: "contributions", label: "Contributions" },
-            { id: "withdrawals", label: "Withdrawals" },
-          ]}
-        />
-      </div>
-      {visible.length === 0 ? (
-        <Muted className="py-4 text-sm">No activity in this view yet.</Muted>
-      ) : (
-        <ul>
-          {visible.map((tx) => {
-            const incoming = tx.amount_usd >= 0;
-            return (
-              <li
-                key={tx.id}
-                className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 border-b border-border/50 py-3 last:border-0"
-              >
-                <span
-                  className={cn(
-                    "mt-1.5 size-1.5 rounded-full",
-                    incoming ? "bg-emerald-600" : "bg-destructive/70",
-                  )}
-                />
-                <span className="min-w-0">
-                  <TextSmall className="block font-medium">{tx.description}</TextSmall>
-                  <Muted className="text-xs">
-                    {formatStatementDate(tx.occurred_on)} · {movementLabel(tx)}
-                  </Muted>
-                </span>
-                <TextSmall
-                  className={cn(
-                    "font-numeric font-medium",
-                    incoming ? "text-emerald-700" : "text-destructive",
-                  )}
-                >
-                  {formatCompactUsd(tx.amount_usd, true)}
-                </TextSmall>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {expanded && remaining > 0 ? (
-        <Link
-          href={statementHref}
-          className="mt-3 inline-block text-sm font-medium text-brand-primary hover:underline"
-        >
-          {remaining} more in statement data
-        </Link>
-      ) : null}
-    </Section>
   );
 }

@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -23,6 +25,21 @@ import {
 } from "@/components/advisors/advisor-surface";
 import { BookAumChart } from "@/components/charts/book-aum-chart";
 import { buttonVariants } from "@/components/ui/button";
+import {
+  CategoryPill,
+  ColumnLabel,
+  StatusMark,
+  Table,
+  TableBody,
+  TableCell,
+  TableFooterBar,
+  TableHead,
+  TableHeader,
+  TableRow,
+  bucketPillLabel,
+  bucketPillTone,
+  usePagedRows,
+} from "@/components/ui/table";
 import { H3, Muted, TextSmall } from "@/components/ui/typography";
 import { BUCKET_COLORS, formatUsd } from "@/lib/wealth/constants";
 import type { PortfolioBucket } from "@/lib/wealth/types";
@@ -35,14 +52,6 @@ import type {
   WmSession,
 } from "@/lib/wealth/wm-types";
 import { cn } from "@/lib/utils";
-
-const BUCKET_SHORT: Record<PortfolioBucket, string> = {
-  income: "Income",
-  growth: "Growth",
-  venture: "Venture",
-  treasury: "Treasury",
-  coa: "Cash On Account",
-};
 
 const BUCKET_TINT: Record<PortfolioBucket, string> = {
   income: "bg-[#b2936b]/12",
@@ -180,6 +189,7 @@ export function AdvisorOverview({
   const totalAum = clients.reduce((sum, c) => sum + c.aum, 0);
   const activeCount = clients.filter((c) => c.status === "active").length;
   const sortedClients = [...clients].sort((a, b) => b.aum - a.aum);
+  const clientPage = usePagedRows(sortedClients);
   const chartData = aumHistory.map((p) => ({ month: p.month, value: p.value }));
   const latestHistoryValue =
     aumHistory.length > 0 ? aumHistory[aumHistory.length - 1]!.value : totalAum;
@@ -348,142 +358,90 @@ export function AdvisorOverview({
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-180 border-collapse text-left">
-              <thead>
-                <tr className="border-b border-border/50 bg-[#f7f6f3]">
-                  {(
-                    [
-                      "Client",
-                      "AUM",
-                      "YTD",
-                      "Portfolio",
-                      "Status",
-                      "Last activity",
-                    ] as const
-                  ).map((col) => (
-                    <th
-                      key={col}
-                      className="px-3 py-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground first:pl-4 last:pr-4"
-                    >
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sortedClients.map((client) => {
+          <div>
+            <Table className="min-w-180">
+              <TableHeader>
+                <TableRow>
+                  <TableHead><ColumnLabel>Client</ColumnLabel></TableHead>
+                  <TableHead className="text-right"><ColumnLabel align="right">AUM</ColumnLabel></TableHead>
+                  <TableHead className="text-right"><ColumnLabel align="right">YTD</ColumnLabel></TableHead>
+                  <TableHead><ColumnLabel>Portfolio</ColumnLabel></TableHead>
+                  <TableHead><ColumnLabel>Status</ColumnLabel></TableHead>
+                  <TableHead><ColumnLabel>Last activity</ColumnLabel></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {clientPage.rows.map((client) => {
                   const status = bookStatus(client);
                   const bucket = primaryBuckets[client.id];
                   const ytd = client.period_return_pct;
+                  const href = `/advisors/dashboard/clients/${client.id}`;
                   return (
-                    <tr
-                      key={client.id}
-                      className="border-b border-border/40 transition-colors last:border-0 hover:bg-[#faf9f6]"
-                    >
-                      <td className="py-0 pl-4">
-                        <Link
-                          href={`/advisors/dashboard/clients/${client.id}`}
-                          className="block py-2.5 pr-3"
-                        >
-                          <TextSmall className="text-[13px] font-medium text-foreground">
-                            {client.full_name}
-                          </TextSmall>
+                    <TableRow key={client.id}>
+                      <TableCell>
+                        <Link href={href} className="font-medium text-foreground">
+                          {client.full_name}
                         </Link>
-                      </td>
-                      <td className="py-0">
-                        <Link
-                          href={`/advisors/dashboard/clients/${client.id}`}
-                          className="block py-2.5 pr-3"
-                        >
-                          <TextSmall className="text-[13px] font-numeric tabular-nums">
-                            {formatCompactAum(client.aum)}
-                          </TextSmall>
-                        </Link>
-                      </td>
-                      <td className="py-0">
-                        <Link
-                          href={`/advisors/dashboard/clients/${client.id}`}
-                          className="block py-2.5 pr-3"
-                        >
-                          <TextSmall
-                            className={cn(
-                              "text-[13px] font-numeric tabular-nums",
-                              ytd == null
-                                ? "text-muted-foreground"
-                                : ytd >= 0
-                                  ? "text-emerald-800"
-                                  : "text-destructive",
-                            )}
-                          >
-                            {formatReturn(ytd)}
-                          </TextSmall>
-                        </Link>
-                      </td>
-                      <td className="py-0">
-                        <Link
-                          href={`/advisors/dashboard/clients/${client.id}`}
-                          className="block py-2.5 pr-3"
-                        >
+                      </TableCell>
+                      <TableCell className="text-right font-numeric tabular-nums">
+                        <Link href={href}>{formatCompactAum(client.aum)}</Link>
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right font-numeric tabular-nums",
+                          ytd == null
+                            ? "text-muted-foreground"
+                            : ytd >= 0
+                              ? "text-emerald-700"
+                              : "text-destructive",
+                        )}
+                      >
+                        <Link href={href}>{formatReturn(ytd)}</Link>
+                      </TableCell>
+                      <TableCell>
+                        <Link href={href}>
                           {bucket ? (
-                            <span
-                              className={cn(
-                                "inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-medium",
-                                BUCKET_TINT[bucket],
-                              )}
-                              style={{ color: BUCKET_COLORS[bucket] }}
-                            >
-                              {BUCKET_SHORT[bucket]}
-                            </span>
+                            <CategoryPill tone={bucketPillTone(bucket)}>
+                              {bucketPillLabel(bucket)}
+                            </CategoryPill>
                           ) : (
-                            <TextSmall className="text-muted-foreground">N/A</TextSmall>
+                            <span className="text-muted-foreground">N/A</span>
                           )}
                         </Link>
-                      </td>
-                      <td className="py-0">
-                        <Link
-                          href={`/advisors/dashboard/clients/${client.id}`}
-                          className="block py-2.5 pr-3"
-                        >
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
-                              status.tone === "healthy" && "bg-emerald-50 text-emerald-800",
-                              status.tone === "attention" &&
-                                "bg-[#b2936b]/15 text-[#8a6f45]",
-                              status.tone === "urgent" && "bg-destructive/10 text-destructive",
-                              status.tone === "neutral" && "bg-muted text-muted-foreground",
-                            )}
+                      </TableCell>
+                      <TableCell>
+                        <Link href={href}>
+                          <StatusMark
+                            tone={
+                              status.tone === "healthy"
+                                ? "open"
+                                : status.tone === "urgent"
+                                  ? "closed"
+                                  : status.tone === "attention"
+                                    ? "attention"
+                                    : "neutral"
+                            }
                           >
-                            <span
-                              className={cn(
-                                "size-1.5 rounded-full",
-                                status.tone === "healthy" && "bg-emerald-700",
-                                status.tone === "attention" && "bg-brand-accent",
-                                status.tone === "urgent" && "bg-destructive",
-                                status.tone === "neutral" && "bg-muted-foreground/50",
-                              )}
-                              aria-hidden
-                            />
                             {status.label}
-                          </span>
+                          </StatusMark>
                         </Link>
-                      </td>
-                      <td className="py-0 pr-4">
-                        <Link
-                          href={`/advisors/dashboard/clients/${client.id}`}
-                          className="block py-2.5"
-                        >
-                          <TextSmall className="text-[12px] text-muted-foreground">
-                            {relativeActivity(client.last_contact_date)}
-                          </TextSmall>
-                        </Link>
-                      </td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        <Link href={href}>{relativeActivity(client.last_contact_date)}</Link>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
+            <TableFooterBar
+              total={clientPage.total}
+              page={clientPage.page}
+              pageCount={clientPage.pageCount}
+              pageSize={clientPage.pageSize}
+              onPageChange={clientPage.setPage}
+              onPageSizeChange={clientPage.setPageSize}
+            />
           </div>
         )}
       </SurfaceCard>

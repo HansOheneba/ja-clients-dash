@@ -8,6 +8,7 @@ import {
   replacePortfolioHoldings,
   saveTrackedHolding,
 } from "@/lib/wealth/queries";
+import { insertAuditLog } from "@/lib/wealth/wm-queries";
 import { canAccessClient, getAdvisorApiSession } from "@/lib/wealth/session";
 import { HOLDINGS_BUCKETS } from "@/lib/wealth/constants";
 import type { PortfolioBucket } from "@/lib/wealth/types";
@@ -60,13 +61,46 @@ export async function POST(
     if (!name) name = ticker;
   }
 
+  let original: number | null = null;
+  if (body.purchasePrice != null && body.purchasePrice !== "") {
+    const purchasePrice = Number(body.purchasePrice);
+    if (!Number.isFinite(purchasePrice) || purchasePrice < 0) {
+      return NextResponse.json({ error: "Purchase price must be a valid amount" }, { status: 400 });
+    }
+    original = roundUsd(purchasePrice * quantity);
+  }
+
+  const purchaseDate =
+    typeof body.purchaseDate === "string" ? body.purchaseDate.slice(0, 10) : "";
+  if (purchaseDate && !/^\d{4}-\d{2}-\d{2}$/.test(purchaseDate)) {
+    return NextResponse.json({ error: "Purchase date must be a valid date" }, { status: 400 });
+  }
+
   const saved = await saveTrackedHolding(id, {
     bucket,
     investment_name: name,
     ticker,
     quantity,
     market_value_usd: market,
+    original_value_usd: original,
   });
+
+  if (original != null || purchaseDate) {
+    await insertAuditLog({
+      actorId: session.userId,
+      action: "holding_add",
+      targetType: "client",
+      targetId: id,
+      afterValue: {
+        ticker,
+        quantity,
+        purchasePrice: original != null ? original / quantity : null,
+        purchaseDate: purchaseDate || null,
+        costBasisUsd: original,
+      },
+      note: purchaseDate ? `Purchase date ${purchaseDate}` : null,
+    });
+  }
 
   return NextResponse.json({ ok: true, ...saved, warning });
 }

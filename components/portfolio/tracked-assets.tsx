@@ -12,6 +12,20 @@ import {
   DashCardTitle,
 } from "@/components/ui/dash-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  CategoryPill,
+  ColumnLabel,
+  Table,
+  TableBody,
+  TableCell,
+  TableFooterBar,
+  TableHead,
+  TableHeader,
+  TableRow,
+  bucketPillLabel,
+  bucketPillTone,
+  usePagedRows,
+} from "@/components/ui/table";
 import { Muted, TextSmall } from "@/components/ui/typography";
 import { useCurrency } from "@/lib/currency-context";
 import type { TrackedAsset } from "@/lib/market/value-holdings";
@@ -54,6 +68,7 @@ export function TrackedAssets({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const assetPage = usePagedRows(assets);
 
   useEffect(() => {
     const url = clientId
@@ -174,60 +189,70 @@ export function TrackedAssets({
               </Muted>
             )}
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead>
-                  <tr className="border-b text-left text-muted-foreground">
-                    <th className="pb-3 pr-4 font-medium">Asset</th>
-                    <th className="pb-3 pr-4 font-medium text-right">Quantity</th>
-                    <th className="pb-3 pr-4 font-medium text-right">Price</th>
-                    <th className="pb-3 pr-4 font-medium text-right">Value</th>
-                    <th className="pb-3 pr-4 font-medium text-right">Today</th>
-                    <th className="pb-3 font-medium text-right">Past year</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assets.map((asset) => {
+            <div>
+              <Table bleed className="min-w-[720px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead><ColumnLabel>Asset</ColumnLabel></TableHead>
+                    <TableHead><ColumnLabel>Ticker</ColumnLabel></TableHead>
+                    <TableHead><ColumnLabel>Portfolio</ColumnLabel></TableHead>
+                    <TableHead className="text-right"><ColumnLabel align="right">Quantity</ColumnLabel></TableHead>
+                    <TableHead className="text-right"><ColumnLabel align="right">Price</ColumnLabel></TableHead>
+                    <TableHead className="text-right"><ColumnLabel align="right">Value</ColumnLabel></TableHead>
+                    <TableHead className="text-right"><ColumnLabel align="right">Today</ColumnLabel></TableHead>
+                    <TableHead className="text-right"><ColumnLabel align="right">Past year</ColumnLabel></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {assetPage.rows.map((asset) => {
                     const active = asset.id === selectedId;
                     return (
-                      <tr
+                      <TableRow
                         key={asset.id}
-                        className={cn(
-                          "cursor-pointer border-b border-border/50 last:border-0",
-                          active && "bg-muted/40",
-                        )}
+                        data-state={active ? "selected" : undefined}
+                        className="cursor-pointer"
                         onClick={() => setSelectedId(asset.id)}
                       >
-                        <td className="py-3 pr-4">
-                          <TextSmall className="font-medium">{asset.name}</TextSmall>
-                          <Muted className="text-xs">
-                            {asset.ticker}
-                            {" · "}
-                            {asset.bucketLabel}
-                          </Muted>
-                        </td>
-                        <td className="py-3 pr-4 text-right font-numeric">
+                        <TableCell className="whitespace-normal font-medium">{asset.name}</TableCell>
+                        <TableCell>
+                          <CategoryPill tone="sky">{asset.ticker}</CategoryPill>
+                        </TableCell>
+                        <TableCell>
+                          <CategoryPill tone={bucketPillTone(asset.bucket)}>
+                            {bucketPillLabel(asset.bucket)}
+                          </CategoryPill>
+                        </TableCell>
+                        <TableCell className="text-right font-numeric">
                           {asset.quantity != null && asset.quantity > 0
                             ? formatQuantity(asset.quantity)
                             : "Add quantity"}
-                        </td>
-                        <td className="py-3 pr-4 text-right font-numeric">
+                        </TableCell>
+                        <TableCell className="text-right font-numeric">
                           {asset.priceUsd != null ? formatPrice(asset.priceUsd) : "n/a"}
-                        </td>
-                        <td className="py-3 pr-4 text-right font-numeric">
+                        </TableCell>
+                        <TableCell className="text-right font-numeric">
                           {format(asset.marketValueUsd)}
-                        </td>
-                        <td className="py-3 pr-4 text-right">
+                        </TableCell>
+                        <TableCell className="text-right">
                           <ChangeCell value={asset.dayChangePct} />
-                        </td>
-                        <td className="py-3 text-right">
+                        </TableCell>
+                        <TableCell className="text-right">
                           <ChangeCell value={asset.rangeChangePct} />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
+              <TableFooterBar
+                className="-mx-3.5 w-[calc(100%+1.75rem)] sm:-mx-4 sm:w-[calc(100%+2rem)]"
+                total={assetPage.total}
+                page={assetPage.page}
+                pageCount={assetPage.pageCount}
+                pageSize={assetPage.pageSize}
+                onPageChange={assetPage.setPage}
+                onPageSizeChange={assetPage.setPageSize}
+              />
             </div>
 
             {selected ? (

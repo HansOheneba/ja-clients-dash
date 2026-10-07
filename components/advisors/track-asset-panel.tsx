@@ -46,7 +46,7 @@ export function TrackAssetPanel({
   embedded = false,
 }: {
   clientId: string;
-  onSaved?: () => void;
+  onSaved?: (result?: { warning: string | null }) => void;
   embedded?: boolean;
 }) {
   const [query, setQuery] = useState("");
@@ -54,6 +54,8 @@ export function TrackAssetPanel({
   const [selected, setSelected] = useState<TrackableAsset | null>(null);
   const [bucket, setBucket] = useState<PortfolioBucket>("growth");
   const [quantity, setQuantity] = useState("");
+  const [purchasePrice, setPurchasePrice] = useState("");
+  const [purchaseDate, setPurchaseDate] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -80,11 +82,12 @@ export function TrackAssetPanel({
 
   const groups = useMemo(
     () => [
-      { label: "Stocks", assets: options.filter((asset) => asset.kind === "Stock") },
-      { label: "Funds", assets: options.filter((asset) => asset.kind === "ETF") },
+      { label: "Stocks", assets: options.filter((asset) => asset.kind === "Stock").slice(0, 6) },
+      { label: "Funds", assets: options.filter((asset) => asset.kind === "ETF").slice(0, 6) },
     ].filter((group) => group.assets.length > 0),
     [options],
   );
+  const showResults = needle.length >= 1 && !selected;
 
   async function trackAsset() {
     if (!selected) {
@@ -108,12 +111,18 @@ export function TrackAssetPanel({
           ticker: selected.symbol,
           investment_name: selected.name,
           quantity: shares,
+          purchasePrice: purchasePrice.trim() ? Number(purchasePrice) : null,
+          purchaseDate: purchaseDate || null,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not track this asset");
 
       setQuantity("");
+      setPurchasePrice("");
+      setPurchaseDate("");
+      setSelected(null);
+      setQuery("");
       setMessage(
         data.warning
           ? `${selected.symbol} saved. ${data.warning}`
@@ -121,7 +130,7 @@ export function TrackAssetPanel({
             ? `${selected.symbol} quantity updated.`
             : `${selected.name} is now tracked.`,
       );
-      onSaved?.();
+      onSaved?.({ warning: data.warning ?? null });
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not track this asset");
     } finally {
@@ -142,53 +151,73 @@ export function TrackAssetPanel({
       )}
 
       <div className="flex flex-col gap-1">
-        <Label htmlFor="track-asset-search">Search for an asset</Label>
+        <Label htmlFor="track-asset-search">Search security</Label>
         <Input
           id="track-asset-search"
-          value={query}
+          value={selected ? `${selected.name} (${selected.symbol})` : query}
           placeholder="Apple, NVIDIA, S&P 500..."
-          onChange={(event) => setQuery(event.target.value)}
+          readOnly={Boolean(selected)}
+          onChange={(event) => {
+            setSelected(null);
+            setQuery(event.target.value);
+          }}
         />
+        {selected ? (
+          <button
+            type="button"
+            className="self-start text-xs font-medium text-brand-primary hover:underline"
+            onClick={() => {
+              setSelected(null);
+              setQuery("");
+            }}
+          >
+            Search again
+          </button>
+        ) : null}
       </div>
 
-      <div className="mt-3 max-h-72 overflow-y-auto rounded-lg border border-border/70 p-1">
-        {groups.length === 0 ? (
-          <Muted className="px-3 py-6 text-sm">
-            Nothing on the trackable list matches that. Use a manual value update for this holding.
-          </Muted>
-        ) : (
-          groups.map((group) => (
-            <div key={group.label} className="mb-2 last:mb-0">
-              <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground">{group.label}</p>
-              {group.assets.map((asset) => (
-                <AssetOption
-                  key={asset.symbol}
-                  asset={asset}
-                  selected={selected?.symbol === asset.symbol}
-                  onSelect={() => setSelected(asset)}
-                />
-              ))}
-            </div>
-          ))
-        )}
-      </div>
-
-      {selected ? (
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <div>
-            <Muted className="text-xs">Asset</Muted>
-            <TextSmall className="font-medium">{selected.name}</TextSmall>
-          </div>
-          <div>
-            <Muted className="text-xs">Type</Muted>
-            <TextSmall className="font-medium">{selected.kind}</TextSmall>
-          </div>
+      {showResults ? (
+        <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-border/70 p-1">
+          {groups.length === 0 ? (
+            <Muted className="px-3 py-4 text-sm">
+              No listed security matches that. Use Edit statement values for a manual holding.
+            </Muted>
+          ) : (
+            groups.map((group) => (
+              <div key={group.label} className="mb-1 last:mb-0">
+                <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground">{group.label}</p>
+                {group.assets.map((asset) => (
+                  <AssetOption
+                    key={asset.symbol}
+                    asset={asset}
+                    selected={false}
+                    onSelect={() => {
+                      setSelected(asset);
+                      setQuery("");
+                    }}
+                  />
+                ))}
+              </div>
+            ))
+          )}
         </div>
       ) : null}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
-          <Label htmlFor="track-asset-bucket">Portfolio bucket</Label>
+          <Label htmlFor="track-asset-quantity">Quantity</Label>
+          <Input
+            id="track-asset-quantity"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="100"
+            value={quantity}
+            onChange={(event) => setQuantity(event.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="track-asset-bucket">Portfolio</Label>
           <Select
             id="track-asset-bucket"
             value={bucket}
@@ -202,15 +231,24 @@ export function TrackAssetPanel({
           </Select>
         </div>
         <div className="flex flex-col gap-1">
-          <Label htmlFor="track-asset-quantity">Quantity / units</Label>
+          <Label htmlFor="track-asset-price">Purchase price (optional)</Label>
           <Input
-            id="track-asset-quantity"
+            id="track-asset-price"
             type="number"
             min="0"
             step="any"
-            placeholder="100"
-            value={quantity}
-            onChange={(event) => setQuantity(event.target.value)}
+            placeholder="Per share or unit"
+            value={purchasePrice}
+            onChange={(event) => setPurchasePrice(event.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="track-asset-date">Purchase date (optional)</Label>
+          <Input
+            id="track-asset-date"
+            type="date"
+            value={purchaseDate}
+            onChange={(event) => setPurchaseDate(event.target.value)}
           />
         </div>
       </div>
@@ -222,7 +260,7 @@ export function TrackAssetPanel({
         onClick={trackAsset}
       >
         {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-        Add holding
+        Add investment
       </Button>
       {message ? <Muted className="mt-2 text-sm">{message}</Muted> : null}
     </div>

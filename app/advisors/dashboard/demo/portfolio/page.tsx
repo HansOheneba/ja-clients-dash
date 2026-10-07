@@ -1,3 +1,6 @@
+"use client";
+
+import { useMemo } from "react";
 import Link from "next/link";
 import { TrendingDown, TrendingUp } from "lucide-react";
 
@@ -11,6 +14,20 @@ import {
   DashCardHeader,
   DashCardTitle,
 } from "@/components/ui/dash-card";
+import {
+  CategoryPill,
+  ColumnLabel,
+  StatusMark,
+  Table,
+  TableBody,
+  TableCell,
+  TableFooterBar,
+  TableHead,
+  TableHeader,
+  TableRow,
+  usePagedRows,
+  type PillTone,
+} from "@/components/ui/table";
 import { H1, Muted, TextSmall } from "@/components/ui/typography";
 import { clients } from "@/lib/advisor-clients-data";
 import { cn } from "@/lib/utils";
@@ -56,6 +73,21 @@ const allocationSlices = assetRollups.map((row) => ({
   color: row.color,
 }));
 
+const PILL_CYCLE: PillTone[] = ["rose", "violet", "indigo", "sky", "mint", "amber", "orange"];
+
+function toneForName(name: string): PillTone {
+  let hash = 0;
+  for (const char of name) hash = (hash + char.charCodeAt(0)) % PILL_CYCLE.length;
+  return PILL_CYCLE[hash] ?? "sky";
+}
+
+function demoStatusTone(status: string): "open" | "closed" | "attention" | "neutral" {
+  if (status === "Active") return "open";
+  if (status === "Review due") return "closed";
+  if (status === "Onboarding") return "attention";
+  return "neutral";
+}
+
 function fmt(n: number) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}k`;
@@ -63,6 +95,12 @@ function fmt(n: number) {
 }
 
 export default function AdvisorPortfolioPage() {
+  const sortedClients = useMemo(
+    () => [...clients].sort((a, b) => b.portfolio.total - a.portfolio.total),
+    [],
+  );
+  const clientPage = usePagedRows(sortedClients);
+
   return (
     <PageShell className="flex flex-col gap-5">
       <header className="flex flex-col gap-1">
@@ -184,89 +222,86 @@ export default function AdvisorPortfolioPage() {
           </Link>
         </DashCardHeader>
         <DashCardContent className="gap-0">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead>
-                <tr className="border-b border-border/60 text-left text-xs text-muted-foreground">
-                  <th className="pb-2 pr-4 font-medium">Client</th>
-                  <th className="pb-2 pr-4 font-medium text-right">AUM</th>
-                  <th className="pb-2 pr-4 font-medium text-right">YTD</th>
-                  <th className="pb-2 pr-4 font-medium">Allocation</th>
-                  <th className="pb-2 font-medium text-right">Report</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...clients]
-                  .sort((a, b) => b.portfolio.total - a.portfolio.total)
-                  .map((c) => (
-                    <tr key={c.id} className="border-b border-border/40 last:border-0">
-                      <td className="py-2.5 pr-4">
-                        <Link
-                          href={`/advisors/dashboard/clients/${c.id}`}
-                          className="flex items-center gap-2 transition-colors hover:text-foreground"
-                        >
-                          <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-sidebar text-xs font-semibold text-sidebar-foreground">
-                            {c.initials}
-                          </div>
-                          <div>
-                            <TextSmall className="font-medium">{c.name}</TextSmall>
-                            <Muted className="text-xs">{c.status}</Muted>
-                          </div>
-                        </Link>
-                      </td>
-                      <td className="py-2.5 pr-4 text-right font-numeric font-semibold">
-                        {fmt(c.portfolio.total)}
-                      </td>
-                      <td
-                        className={cn(
-                          "py-2.5 pr-4 text-right font-numeric font-semibold",
-                          c.portfolio.ytd >= 0 ? "text-green-600" : "text-red-500",
-                        )}
-                      >
-                        <span className="inline-flex items-center justify-end gap-1">
-                          {c.portfolio.ytd >= 0 ? (
-                            <TrendingUp className="size-3.5" />
-                          ) : (
-                            <TrendingDown className="size-3.5" />
-                          )}
-                          {c.portfolio.ytd > 0 ? "+" : ""}
-                          {c.portfolio.ytd}%
-                        </span>
-                      </td>
-                      <td className="py-2.5">
-                        <div className="flex h-2 w-full max-w-xs overflow-hidden rounded-full bg-muted">
-                          {c.portfolio.assets.map((a) => (
-                            <div
-                              key={a.name}
-                              title={`${a.name}: ${a.allocation}%`}
-                              className="h-full"
-                              style={{
-                                width: `${a.allocation}%`,
-                                backgroundColor: a.color,
-                              }}
-                            />
-                          ))}
-                        </div>
-                        <Muted className="mt-1 text-xs">
-                          {c.portfolio.assets
-                            .slice(0, 3)
-                            .map((a) => `${a.allocation}% ${a.name}`)
-                            .join(" · ")}
-                        </Muted>
-                      </td>
-                      <td className="py-2.5 pl-4 text-right">
-                        <Link
-                          href={`/advisors/dashboard/demo/reports?client=${c.id}`}
-                          className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-                        >
-                          Generate
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+          <Table bleed className="min-w-[760px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead><ColumnLabel>Client</ColumnLabel></TableHead>
+                <TableHead className="text-right"><ColumnLabel align="right">AUM</ColumnLabel></TableHead>
+                <TableHead className="text-right"><ColumnLabel align="right">YTD</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>Allocation</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>Status</ColumnLabel></TableHead>
+                <TableHead className="text-right"><ColumnLabel align="right">Report</ColumnLabel></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {clientPage.rows.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell>
+                    <Link
+                      href={`/advisors/dashboard/clients/${c.id}`}
+                      className="flex items-center gap-2 transition-colors hover:text-foreground"
+                    >
+                      <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-sidebar text-xs font-semibold text-sidebar-foreground">
+                        {c.initials}
+                      </div>
+                      <TextSmall className="font-medium">{c.name}</TextSmall>
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-right font-numeric font-medium">
+                    {fmt(c.portfolio.total)}
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      "text-right font-numeric font-medium",
+                      c.portfolio.ytd >= 0 ? "text-emerald-700" : "text-red-500",
+                    )}
+                  >
+                    <span className="inline-flex items-center justify-end gap-1">
+                      {c.portfolio.ytd >= 0 ? (
+                        <TrendingUp className="size-3.5" />
+                      ) : (
+                        <TrendingDown className="size-3.5" />
+                      )}
+                      {c.portfolio.ytd > 0 ? "+" : ""}
+                      {c.portfolio.ytd}%
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[...c.portfolio.assets]
+                        .sort((a, b) => b.allocation - a.allocation)
+                        .slice(0, 2)
+                        .map((asset) => (
+                          <CategoryPill key={asset.name} tone={toneForName(asset.name)}>
+                            {asset.name}
+                          </CategoryPill>
+                        ))}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <StatusMark tone={demoStatusTone(c.status)}>{c.status}</StatusMark>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Link
+                      href={`/advisors/dashboard/demo/reports?client=${c.id}`}
+                      className="text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      Generate
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <TableFooterBar
+            className="-mx-3.5 w-[calc(100%+1.75rem)] sm:-mx-4 sm:w-[calc(100%+2rem)]"
+            total={clientPage.total}
+            page={clientPage.page}
+            pageCount={clientPage.pageCount}
+            pageSize={clientPage.pageSize}
+            onPageChange={clientPage.setPage}
+            onPageSizeChange={clientPage.setPageSize}
+          />
         </DashCardContent>
       </DashCard>
     </PageShell>

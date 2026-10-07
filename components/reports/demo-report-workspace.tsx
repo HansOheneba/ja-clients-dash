@@ -14,13 +14,26 @@ import {
 import { Input } from "@/components/ui/input";
 import { KpiItem, KpiStrip } from "@/components/ui/kpi-strip";
 import { Select } from "@/components/ui/select";
+import {
+  CategoryPill,
+  ColumnLabel,
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+  bucketPillLabel,
+  bucketPillTone,
+} from "@/components/ui/table";
 import { Muted, TextSmall } from "@/components/ui/typography";
 import {
   getDemoSnapshots,
   listDemoReportClients,
   type DemoSnapshotInput,
 } from "@/lib/reports/demo-client-data";
-import { ALL_BUCKETS, BUCKET_COLORS, BUCKET_LABELS, formatUsd } from "@/lib/wealth/constants";
+import { ALL_BUCKETS, formatUsd } from "@/lib/wealth/constants";
 import type { PortfolioBucket } from "@/lib/wealth/types";
 
 type DraftRow = {
@@ -222,34 +235,30 @@ export function DemoReportWorkspace({
             </DashCardDescription>
           </div>
         </DashCardHeader>
-        <DashCardContent className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-xs text-muted-foreground">
-                <th className="pb-2 pr-3 font-medium">Bucket</th>
-                <th className="pb-2 pr-3 font-medium">Previous</th>
-                <th className="pb-2 pr-3 font-medium">Current</th>
-                <th className="pb-2 pr-3 font-medium">Period %</th>
-                <th className="pb-2 pr-3 font-medium">YTD %</th>
-                <th className="pb-2 pr-3 font-medium">Inception gain</th>
-                <th className="pb-2 pr-3 font-medium">Inception %</th>
-                <th className="pb-2 font-medium">Annualised %</th>
-              </tr>
-            </thead>
-            <tbody>
+        <DashCardContent>
+          <Table bleed className="min-w-[880px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead><ColumnLabel>Bucket</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>Previous</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>Current</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>Period %</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>YTD %</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>Inception gain</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>Inception %</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>Annualised %</ColumnLabel></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {draft.map((row, index) => (
-                <tr key={row.bucket} className="border-b border-border/50 last:border-0">
-                  <td className="py-2 pr-3">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="size-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: BUCKET_COLORS[row.bucket] }}
-                      />
-                      <TextSmall className="font-medium">{BUCKET_LABELS[row.bucket]}</TextSmall>
-                    </div>
-                  </td>
+                <TableRow key={row.bucket}>
+                  <TableCell>
+                    <CategoryPill tone={bucketPillTone(row.bucket)}>
+                      {bucketPillLabel(row.bucket)}
+                    </CategoryPill>
+                  </TableCell>
                   {DRAFT_KEYS.map((key) => (
-                    <td key={key} className="py-2 pr-3">
+                    <TableCell key={key}>
                       <Input
                         type="number"
                         step="0.01"
@@ -261,24 +270,26 @@ export function DemoReportWorkspace({
                           setDraft(next);
                         }}
                       />
-                    </td>
+                    </TableCell>
                   ))}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t text-sm">
-                <td className="pt-3 pr-3 font-medium">Total</td>
-                <td className="pt-3 pr-3 font-numeric font-medium">{formatUsd(totals.previous)}</td>
-                <td className="pt-3 pr-3 font-numeric font-medium">{formatUsd(totals.current)}</td>
-                <td className="pt-3 pr-3 font-numeric text-muted-foreground">
+            </TableBody>
+            <TableFooter>
+              <TableRow>
+                <TableCell className="font-medium">
+                  Total <span className="font-semibold tabular-nums">{draft.length}</span>
+                </TableCell>
+                <TableCell className="font-numeric font-medium">{formatUsd(totals.previous)}</TableCell>
+                <TableCell className="font-numeric font-medium">{formatUsd(totals.current)}</TableCell>
+                <TableCell className="font-numeric text-muted-foreground">
                   {totals.periodPct >= 0 ? "+" : ""}
                   {totals.periodPct.toFixed(1)}%
-                </td>
-                <td colSpan={4} />
-              </tr>
-            </tfoot>
-          </table>
+                </TableCell>
+                <TableCell colSpan={4} />
+              </TableRow>
+            </TableFooter>
+          </Table>
         </DashCardContent>
       </DashCard>
     </div>

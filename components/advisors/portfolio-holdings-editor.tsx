@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import {
+  ColumnLabel,
   Table,
   TableBody,
   TableCell,
@@ -290,12 +291,12 @@ export function PortfolioHoldingsEditor({
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Bucket</TableHead>
-                      <TableHead>Investment</TableHead>
-                      <TableHead>Ticker</TableHead>
-                      <TableHead className="text-right">Quantity</TableHead>
-                      <TableHead className="text-right">Cost basis</TableHead>
-                      <TableHead className="text-right">Market value</TableHead>
+                      <TableHead><ColumnLabel>Bucket</ColumnLabel></TableHead>
+                      <TableHead><ColumnLabel>Investment</ColumnLabel></TableHead>
+                      <TableHead><ColumnLabel>Ticker</ColumnLabel></TableHead>
+                      <TableHead className="text-right"><ColumnLabel align="right">Quantity</ColumnLabel></TableHead>
+                      <TableHead className="text-right"><ColumnLabel align="right">Cost basis</ColumnLabel></TableHead>
+                      <TableHead className="text-right"><ColumnLabel align="right">Market value</ColumnLabel></TableHead>
                       <TableHead className="w-10" />
                       <TableHead className="w-10" />
                     </TableRow>
@@ -455,7 +456,11 @@ export function PortfolioHoldingsEditor({
             )}
 
             {draft.length > 0 ? (
-              <div className="flex flex-wrap gap-4 border-t border-border/60 pt-3 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#e6ebf2] px-4 py-3 text-[13px]">
+                <span>
+                  Total <span className="font-semibold tabular-nums">{draft.length}</span>
+                </span>
+                <div className="flex flex-wrap gap-4">
                 <span className="font-numeric">
                   <span className="text-muted-foreground">Cost basis: </span>
                   {formatUsd(totals.original)}
@@ -468,6 +473,7 @@ export function PortfolioHoldingsEditor({
                   <span className="text-muted-foreground">Unrealised: </span>
                   {formatUsd(totals.gain, true)}
                 </span>
+                </div>
               </div>
             ) : null}
 

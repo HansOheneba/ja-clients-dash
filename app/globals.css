@@ -46,11 +46,11 @@
   --color-brand-mono-mid: var(--brand-mono-mid);
   --color-brand-mono-light: var(--brand-mono-light);
 
-  /* Fonts */
-  --font-sans: var(--font-sans);
-  --font-heading: var(--font-heading);
-  --font-subheading: var(--font-manrope);
-  --font-numeric: var(--font-manrope);
+  /* Fonts: Inter across headings, body, and figures */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-subheading: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-numeric: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
   /* Typography scale */
 
@@ -123,6 +123,7 @@
 
 :root {
   --radius: 0.5rem;
+  --font-numeric: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
   /* Surfaces */
   --background: #f6f7f9;

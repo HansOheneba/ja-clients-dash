@@ -54,7 +54,7 @@ function DashboardShell({
       style={{ "--sidebar-width-icon": "4.5rem" } as React.CSSProperties}
     >
       <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-        <SidebarHeader className="flex gap-3 px-3 pb-4 pt-5">
+        <SidebarHeader className="gap-2 px-2 py-3">
           <Link
             href={basePath}
             prefetch={false}
@@ -92,15 +92,15 @@ function DashboardShell({
                       <SidebarMenuButton
                         isActive={isActive}
                         tooltip={item.label}
-                        size="lg"
                         className={cn(
+                          "h-auto gap-2.5 px-2.5 py-1.5",
                           "data-active:bg-sidebar-primary data-active:text-sidebar-primary-foreground",
-                          "group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:rounded-lg",
+                          "group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:p-0!",
                           "group-data-[collapsible=icon]:[&>span:not(.badge)]:hidden"
                         )}
                         render={<Link href={item.href} prefetch={false} />}
                       >
-                        <NavIcon icon={item.icon} iconSrc={item.iconSrc} label={item.label} />
+                        <NavIcon icon={item.icon} iconSrc={item.iconSrc} label={item.label} className="size-4" />
                         <span className="flex-1">{item.label}</span>
                         {item.badge ? (
                           <span className="badge ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-accent px-1 text-[10px] font-bold leading-none text-white group-data-[collapsible=icon]:hidden">
@@ -118,17 +118,16 @@ function DashboardShell({
 
         <SidebarContent className="flex-1" />
 
-        <SidebarFooter className="px-3 pb-5 pt-2 group-data-[collapsible=icon]:items-center">
+        <SidebarFooter className="px-2 pb-3 pt-2 group-data-[collapsible=icon]:items-center">
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
                 isActive={settingsActive}
                 tooltip="Settings"
-                size="lg"
-                className="group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:[&>span]:hidden"
+                className="h-auto gap-2.5 px-2.5 py-1.5 group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:[&>span]:hidden"
                 render={<Link href={settingsHref} prefetch={false} />}
               >
-                <Settings className="size-5" />
+                <Settings className="size-4" />
                 <span>Settings</span>
               </SidebarMenuButton>
             </SidebarMenuItem>

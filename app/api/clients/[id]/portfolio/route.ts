@@ -106,7 +106,11 @@ export async function PUT(
 
   await upsertSnapshots(id, period.id, rows);
   const total = rows.reduce((sum, r) => sum + r.current_value_usd, 0);
-  await upsertHistoryPoint(id, period.period_end, total);
+  const requestedDate = typeof body.effectiveDate === "string" ? body.effectiveDate.slice(0, 10) : "";
+  const recordedOn = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)
+    ? requestedDate
+    : period.period_end.slice(0, 10);
+  await upsertHistoryPoint(id, recordedOn, total);
 
   const bucketValues = Object.fromEntries(
     rows.map((r) => [r.bucket, r.current_value_usd]),
@@ -121,7 +125,7 @@ export async function PUT(
       targetType: "client",
       targetId: id,
       beforeValue: { buckets: previousByBucket },
-      afterValue: { buckets: bucketValues },
+      afterValue: { buckets: bucketValues, effectiveDate: recordedOn },
       note: auditNote,
     });
   }

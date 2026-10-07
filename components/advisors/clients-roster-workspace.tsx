@@ -10,6 +10,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ColumnLabel, StatusMark, TableFooterBar, usePagedRows } from "@/components/ui/table";
 import { Muted, TextSmall } from "@/components/ui/typography";
 import { formatUsd } from "@/lib/wealth/constants";
 import { cn } from "@/lib/utils";
@@ -46,11 +47,11 @@ function formatReturn(pct: number | null) {
   return `${sign}${pct.toFixed(1)}%`;
 }
 
-function statusDotClass(status: string) {
-  if (status === "active") return "bg-emerald-600";
-  if (status === "review_due") return "bg-destructive";
-  if (status === "onboarding") return "bg-brand-accent";
-  return "bg-muted-foreground";
+function statusTone(status: string): "open" | "closed" | "attention" | "neutral" {
+  if (status === "active") return "open";
+  if (status === "review_due") return "closed";
+  if (status === "onboarding") return "attention";
+  return "neutral";
 }
 
 export function ClientsRosterWorkspace({
@@ -97,6 +98,10 @@ export function ClientsRosterWorkspace({
     });
   }, [clients, search, statusFilter, advisorFilter, openOnly]);
 
+  const page = usePagedRows(filtered, {
+    resetKey: `${search}|${statusFilter}|${advisorFilter}|${openOnly}`,
+  });
+
   async function bulkAssign() {
     if (selected.size === 0 || !bulkAdvisorId) return;
     setBulkLoading(true);
@@ -130,7 +135,7 @@ export function ClientsRosterWorkspace({
   }
 
   function toggleAll(checked: boolean) {
-    if (checked) setSelected(new Set(filtered.map((c) => c.id)));
+    if (checked) setSelected(new Set(page.rows.map((c) => c.id)));
     else setSelected(new Set());
   }
 
@@ -270,18 +275,18 @@ export function ClientsRosterWorkspace({
       ) : null}
 
       <div className={cn(advisorSurface.card, "overflow-hidden")}>
-        <div className="hidden items-center gap-3 border-b border-border/60 bg-[#f7f6f3] px-4 py-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground lg:grid lg:grid-cols-[auto_minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,1fr)_auto]">
+        <div className="hidden items-center gap-3 border-b border-[#e6ebf2] bg-[#f4f7fb] px-4 py-3 text-[13px] font-medium text-[#64748b] lg:grid lg:grid-cols-[auto_minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,1fr)_auto]">
           <input
             type="checkbox"
-            checked={selected.size === filtered.length && filtered.length > 0}
+            checked={page.rows.length > 0 && page.rows.every((client) => selected.has(client.id))}
             onChange={(e) => toggleAll(e.target.checked)}
-            className="size-4 rounded border-border"
-            aria-label="Select all clients"
+            className="size-4 rounded border-[#d5dbe3]"
+            aria-label="Select all clients on this page"
           />
-          <span>Client</span>
-          <span>Portfolio</span>
-          <span>Status</span>
-          <span>Wealth manager</span>
+          <ColumnLabel>Client</ColumnLabel>
+          <ColumnLabel>Portfolio</ColumnLabel>
+          <ColumnLabel>Status</ColumnLabel>
+          <ColumnLabel>Wealth manager</ColumnLabel>
           <span />
         </div>
 
@@ -291,12 +296,12 @@ export function ClientsRosterWorkspace({
             <Muted className="mt-1">Try another status, or clear search.</Muted>
           </div>
         ) : (
-          filtered.map((client) => {
+          page.rows.map((client) => {
             const ret = formatReturn(client.period_return_pct);
             return (
               <div
                 key={client.id}
-                className="flex items-center gap-3 border-b border-border/50 px-4 py-2.5 last:border-0 transition-colors duration-150 hover:bg-[#faf9f6] lg:grid lg:grid-cols-[auto_minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,1fr)_auto]"
+                className="flex items-center gap-3 border-b border-[#eef1f4] px-4 py-3.5 last:border-0 transition-colors duration-150 hover:bg-[#fafbfd] lg:grid lg:grid-cols-[auto_minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,1fr)_auto]"
               >
                 <input
                   type="checkbox"
@@ -352,10 +357,9 @@ export function ClientsRosterWorkspace({
                   </Muted>
                 </div>
                 <div className="hidden min-w-0 lg:block">
-                  <span className="inline-flex items-center gap-1.5 text-sm">
-                    <span className={cn("size-1.5 rounded-full", statusDotClass(client.status))} />
+                  <StatusMark tone={statusTone(client.status)}>
                     {STATUS_LABEL[client.status] ?? client.status}
-                  </span>
+                  </StatusMark>
                   {client.has_open_request ? (
                     <Muted className="text-[12px]">Open request</Muted>
                   ) : client.next_review_date ? (
@@ -384,6 +388,16 @@ export function ClientsRosterWorkspace({
             );
           })
         )}
+        {filtered.length > 0 ? (
+          <TableFooterBar
+            total={page.total}
+            page={page.page}
+            pageCount={page.pageCount}
+            pageSize={page.pageSize}
+            onPageChange={page.setPage}
+            onPageSizeChange={page.setPageSize}
+          />
+        ) : null}
       </div>
     </section>
   );

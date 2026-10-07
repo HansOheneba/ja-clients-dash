@@ -3,7 +3,6 @@
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 import { AllocationPieChart, AssetAreaChart } from "@/components/charts/asset-charts";
-import { TrackedAssets } from "@/components/portfolio/tracked-assets";
 import { PageShell } from "@/components/layout/page-shell";
 import {
   DashCard,
@@ -15,10 +14,23 @@ import {
 import { ClientEmptyState } from "@/components/ui/empty-state";
 import { KpiItem, KpiStrip } from "@/components/ui/kpi-strip";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  CategoryPill,
+  ColumnLabel,
+  Table,
+  TableBody,
+  TableCell,
+  TableFooterBar,
+  TableHead,
+  TableHeader,
+  TableRow,
+  bucketPillLabel,
+  bucketPillTone,
+  usePagedRows,
+} from "@/components/ui/table";
 import { H1, Muted, TextSmall } from "@/components/ui/typography";
 import { useCurrency } from "@/lib/currency-context";
 import { useJaPortfolio } from "@/lib/hooks/use-ja-portfolio";
-import { BUCKET_COLORS } from "@/lib/wealth/constants";
 import { cn } from "@/lib/utils";
 
 function ChangeCell({ value }: { value: number | null }) {
@@ -40,6 +52,7 @@ function ChangeCell({ value }: { value: number | null }) {
 export default function ClientPortfolioPage() {
   const { format } = useCurrency();
   const { data, allocationSlices, loading, error, empty } = useJaPortfolio();
+  const bucketPage = usePagedRows(data?.buckets ?? []);
 
   if (loading) {
     return (
@@ -178,39 +191,42 @@ export default function ClientPortfolioPage() {
           <DashCardTitle>Portfolio Buckets</DashCardTitle>
           <DashCardDescription>Current values and period performance</DashCardDescription>
         </DashCardHeader>
-        <DashCardContent className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead>
-              <tr className="border-b text-left text-muted-foreground">
-                <th className="pb-3 pr-4 font-medium">Bucket</th>
-                <th className="pb-3 pr-4 font-medium text-right">Value</th>
-                <th className="pb-3 pr-4 font-medium text-right">Allocation</th>
-                <th className="pb-3 font-medium text-right">YTD</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.buckets.map((bucket) => (
-                <tr key={bucket.id} className="border-b border-border/50 last:border-0">
-                  <td className="py-3 pr-4">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="size-2.5 rounded-full"
-                        style={{ backgroundColor: BUCKET_COLORS[bucket.id as keyof typeof BUCKET_COLORS] }}
-                      />
-                      <TextSmall className="font-medium">{bucket.label}</TextSmall>
-                    </div>
-                  </td>
-                  <td className="py-3 pr-4 text-right font-numeric">{format(bucket.totalUSD)}</td>
-                  <td className="py-3 pr-4 text-right font-numeric">{bucket.allocationPct.toFixed(1)}%</td>
-                  <td className="py-3 text-right"><ChangeCell value={bucket.ytdPct} /></td>
-                </tr>
+        <DashCardContent className="gap-0">
+          <Table bleed className="min-w-[640px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead><ColumnLabel>Bucket</ColumnLabel></TableHead>
+                <TableHead className="text-right"><ColumnLabel align="right">Value</ColumnLabel></TableHead>
+                <TableHead className="text-right"><ColumnLabel align="right">Allocation</ColumnLabel></TableHead>
+                <TableHead className="text-right"><ColumnLabel align="right">YTD</ColumnLabel></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {bucketPage.rows.map((bucket) => (
+                <TableRow key={bucket.id}>
+                  <TableCell>
+                    <CategoryPill tone={bucketPillTone(bucket.id)}>
+                      {bucketPillLabel(bucket.id) || bucket.label}
+                    </CategoryPill>
+                  </TableCell>
+                  <TableCell className="text-right font-numeric">{format(bucket.totalUSD)}</TableCell>
+                  <TableCell className="text-right font-numeric">{bucket.allocationPct.toFixed(1)}%</TableCell>
+                  <TableCell className="text-right"><ChangeCell value={bucket.ytdPct} /></TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
+          <TableFooterBar
+            className="-mx-3.5 w-[calc(100%+1.75rem)] sm:-mx-4 sm:w-[calc(100%+2rem)]"
+            total={bucketPage.total}
+            page={bucketPage.page}
+            pageCount={bucketPage.pageCount}
+            pageSize={bucketPage.pageSize}
+            onPageChange={bucketPage.setPage}
+            onPageSizeChange={bucketPage.setPageSize}
+          />
         </DashCardContent>
       </DashCard>
-
-      <TrackedAssets />
     </PageShell>
   );
 }

@@ -42,9 +42,13 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  CategoryPill,
+  ColumnLabel,
+  StatusMark,
   Table,
   TableBody,
   TableCell,
+  TableFooterBar,
   TableHead,
   TableHeader,
   TableRow,
@@ -275,18 +279,18 @@ function DesignSystemPreview() {
           <Card>
             <CardContent className="flex flex-col gap-6 pt-6">
               <div>
-                <Overline>H1: Playfair Display</Overline>
+                <Overline>H1: Inter</Overline>
                 <H1>Wealth Summary</H1>
               </div>
               <div>
-                <Overline>Display / H2-H4: Manrope</Overline>
+                <Overline>Display / H2-H4: Inter</Overline>
                 <Display className="mb-2">Portfolio Overview</Display>
                 <H2 className="mb-1">Recent Activity</H2>
                 <H3 className="mb-1">Asset Allocation</H3>
                 <H4>Holdings by Sector</H4>
               </div>
               <div>
-                <Overline>Body: Plus Jakarta Sans</Overline>
+                <Overline>Body: Inter</Overline>
                 <Text>Paragraphs, labels, and UI copy.</Text>
                 <Lead>Lead paragraph for page intros.</Lead>
                 <TextSmall>Small secondary text.</TextSmall>
@@ -294,7 +298,7 @@ function DesignSystemPreview() {
                 <Muted>Muted helper text</Muted>
               </div>
               <div>
-                <Overline>Numeric: Manrope (metrics &amp; inputs)</Overline>
+                <Overline>Numeric: Inter (metrics &amp; inputs)</Overline>
                 <Numeric>£3,318,930.86</Numeric>
               </div>
             </CardContent>
@@ -481,50 +485,57 @@ function DesignSystemPreview() {
         </SectionBlock>
 
         <SectionBlock title="Table">
-          <Card>
-            <CardContent className="pt-6">
+          <Card className="gap-0 overflow-hidden py-0">
+            <CardContent className="px-0">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Asset</TableHead>
-                    <TableHead>Allocation</TableHead>
-                    <TableHead className="text-right">Value</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead><ColumnLabel>Asset</ColumnLabel></TableHead>
+                    <TableHead><ColumnLabel>Allocation</ColumnLabel></TableHead>
+                    <TableHead className="text-right"><ColumnLabel align="right">Value</ColumnLabel></TableHead>
+                    <TableHead><ColumnLabel>Status</ColumnLabel></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   <TableRow>
                     <TableCell className="font-medium">JA Wealth</TableCell>
-                    <TableCell className="font-numeric">42%</TableCell>
+                    <TableCell>
+                      <CategoryPill tone="rose">Wealth</CategoryPill>
+                    </TableCell>
                     <TableCell className="text-right font-numeric">
                       £1,240,000
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">Active</Badge>
+                      <StatusMark tone="open">Active</StatusMark>
                     </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">JA Realty</TableCell>
-                    <TableCell className="font-numeric">28%</TableCell>
+                    <TableCell>
+                      <CategoryPill tone="violet">Realty</CategoryPill>
+                    </TableCell>
                     <TableCell className="text-right font-numeric">
                       £826,000
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">Review</Badge>
+                      <StatusMark tone="attention">Review</StatusMark>
                     </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">JA Digital</TableCell>
-                    <TableCell className="font-numeric">18%</TableCell>
+                    <TableCell>
+                      <CategoryPill tone="mint">Digital</CategoryPill>
+                    </TableCell>
                     <TableCell className="text-right font-numeric">
                       £531,000
                     </TableCell>
                     <TableCell>
-                      <Badge>Active</Badge>
+                      <StatusMark tone="open">Active</StatusMark>
                     </TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
+              <TableFooterBar total={3} page={1} pageCount={1} pageSize={15} />
             </CardContent>
           </Card>
         </SectionBlock>

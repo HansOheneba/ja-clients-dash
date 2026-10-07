@@ -6,7 +6,6 @@ import { ChevronDown, ChevronLeft, ChevronRight, Loader2, Plus, TrendingUp } fro
 
 import { PortfolioHoldingsEditor } from "@/components/advisors/portfolio-holdings-editor";
 import { GenerateReportButton } from "@/components/reports/generate-report-button";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DashCard,
@@ -20,17 +19,23 @@ import { Label } from "@/components/ui/label";
 import { KpiItem, KpiStrip } from "@/components/ui/kpi-strip";
 import { Select } from "@/components/ui/select";
 import {
+  CategoryPill,
+  ColumnLabel,
   Table,
   TableBody,
   TableCell,
+  TableFooter,
+  TableFooterBar,
   TableHead,
   TableHeader,
   TableRow,
+  bucketPillLabel,
+  bucketPillTone,
+  transactionPillTone,
 } from "@/components/ui/table";
 import { Muted, TextSmall } from "@/components/ui/typography";
 import {
   ALL_BUCKETS,
-  BUCKET_COLORS,
   BUCKET_LABELS,
   formatUsd,
   TRANSACTION_TYPE_LABELS,
@@ -50,7 +55,6 @@ import type {
 } from "@/lib/wealth/types";
 import { cn } from "@/lib/utils";
 
-const TX_PAGE_SIZE = 10;
 
 function formatStatementDate(value: string) {
   return new Date(`${value}T12:00:00`).toLocaleDateString("en-GB", {
@@ -130,6 +134,7 @@ export function StatementDataWorkspace({
     transactionType: "drawdown" as TransactionType,
   });
   const [txPage, setTxPage] = useState(1);
+  const [txPageSize, setTxPageSize] = useState(15);
   const [txTotal, setTxTotal] = useState(0);
   const [txRows, setTxRows] = useState<WealthTransaction[]>([]);
   const [txLoading, setTxLoading] = useState(false);
@@ -137,7 +142,7 @@ export function StatementDataWorkspace({
   const [holdings, setHoldings] = useState<PortfolioHolding[]>(initialHoldings);
 
   const selectedPeriod = periods.find((period) => period.id === periodId) ?? null;
-  const txPageCount = Math.max(1, Math.ceil(txTotal / TX_PAGE_SIZE));
+  const txPageCount = Math.max(1, Math.ceil(txTotal / txPageSize));
   const [viewYear, setViewYear] = useState(() => yearFromPeriodEnd(selectedPeriod));
   const lastPeriodId = useRef(periodId);
 
@@ -175,7 +180,7 @@ export function StatementDataWorkspace({
         const params = new URLSearchParams({
           periodId,
           page: String(page),
-          limit: String(TX_PAGE_SIZE),
+          limit: String(txPageSize),
         });
         const res = await fetch(`/api/clients/${clientId}/transactions?${params}`);
         const data = await res.json();
@@ -190,7 +195,7 @@ export function StatementDataWorkspace({
         setTxLoading(false);
       }
     },
-    [clientId, periodId],
+    [clientId, periodId, txPageSize],
   );
 
   useEffect(() => {
@@ -423,32 +428,28 @@ export function StatementDataWorkspace({
             </DashCardDescription>
           </div>
         </DashCardHeader>
-        <DashCardContent className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-xs text-muted-foreground">
-                <th className="pb-2 pr-3 font-medium">Bucket</th>
-                <th className="pb-2 pr-3 font-medium">Previous</th>
-                <th className="pb-2 pr-3 font-medium">Current</th>
-                <th className="pb-2 pr-3 font-medium">Period %</th>
-                <th className="pb-2 pr-3 font-medium">YTD %</th>
-                <th className="pb-2 pr-3 font-medium">Inception gain</th>
-                <th className="pb-2 pr-3 font-medium">Inception %</th>
-                <th className="pb-2 font-medium">Annualised %</th>
-              </tr>
-            </thead>
-            <tbody>
+        <DashCardContent>
+          <Table bleed className="min-w-[880px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead><ColumnLabel>Bucket</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>Previous</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>Current</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>Period %</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>YTD %</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>Inception gain</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>Inception %</ColumnLabel></TableHead>
+                <TableHead><ColumnLabel>Annualised %</ColumnLabel></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {draft.map((row, index) => (
-                <tr key={row.bucket} className="border-b border-border/50 last:border-0">
-                  <td className="py-2 pr-3">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="size-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: BUCKET_COLORS[row.bucket] }}
-                      />
-                      <TextSmall className="font-medium">{BUCKET_LABELS[row.bucket]}</TextSmall>
-                    </div>
-                  </td>
+                <TableRow key={row.bucket}>
+                  <TableCell>
+                    <CategoryPill tone={bucketPillTone(row.bucket)}>
+                      {bucketPillLabel(row.bucket)}
+                    </CategoryPill>
+                  </TableCell>
                   {(
                     [
                       "previous_value_usd",
@@ -460,7 +461,7 @@ export function StatementDataWorkspace({
                       "annualized_return_pct",
                     ] as const
                   ).map((key) => (
-                    <td key={key} className="py-2 pr-3">
+                    <TableCell key={key}>
                       <Input
                         type="number"
                         step="0.01"
@@ -472,23 +473,25 @@ export function StatementDataWorkspace({
                           setDraft(next);
                         }}
                       />
-                    </td>
+                    </TableCell>
                   ))}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t text-sm">
-                <td className="pt-3 pr-3 font-medium">Total</td>
-                <td className="pt-3 pr-3 font-numeric font-medium">{formatUsd(totals.previous)}</td>
-                <td className="pt-3 pr-3 font-numeric font-medium">{formatUsd(totals.current)}</td>
-                <td className="pt-3 pr-3 font-numeric text-muted-foreground">
+            </TableBody>
+            <TableFooter>
+              <TableRow>
+                <TableCell className="font-medium">
+                  Total <span className="font-semibold tabular-nums">{draft.length}</span>
+                </TableCell>
+                <TableCell className="font-numeric font-medium">{formatUsd(totals.previous)}</TableCell>
+                <TableCell className="font-numeric font-medium">{formatUsd(totals.current)}</TableCell>
+                <TableCell className="font-numeric text-muted-foreground">
                   {totals.periodPct >= 0 ? "+" : ""}{totals.periodPct.toFixed(1)}%
-                </td>
-                <td colSpan={4} />
-              </tr>
-            </tfoot>
-          </table>
+                </TableCell>
+                <TableCell colSpan={4} />
+              </TableRow>
+            </TableFooter>
+          </Table>
         </DashCardContent>
       </DashCard>
 
@@ -621,14 +624,14 @@ export function StatementDataWorkspace({
             <Muted>No transactions recorded for this period yet.</Muted>
           ) : (
             <>
-              <Table>
+              <Table bleed>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Bucket</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead><ColumnLabel>Date</ColumnLabel></TableHead>
+                    <TableHead><ColumnLabel>Description</ColumnLabel></TableHead>
+                    <TableHead><ColumnLabel>Bucket</ColumnLabel></TableHead>
+                    <TableHead><ColumnLabel>Type</ColumnLabel></TableHead>
+                    <TableHead className="text-right"><ColumnLabel align="right">Amount</ColumnLabel></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -642,21 +645,17 @@ export function StatementDataWorkspace({
                       </TableCell>
                       <TableCell>
                         {item.bucket ? (
-                          <span className="inline-flex items-center gap-2">
-                            <span
-                              className="size-2 shrink-0 rounded-full"
-                              style={{ backgroundColor: BUCKET_COLORS[item.bucket] }}
-                            />
-                            <span className="truncate">{BUCKET_LABELS[item.bucket]}</span>
-                          </span>
+                          <CategoryPill tone={bucketPillTone(item.bucket)}>
+                            {bucketPillLabel(item.bucket)}
+                          </CategoryPill>
                         ) : (
                           <span className="text-muted-foreground">Unassigned</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">
+                        <CategoryPill tone={transactionPillTone(item.transaction_type)}>
                           {TRANSACTION_TYPE_LABELS[item.transaction_type]}
-                        </Badge>
+                        </CategoryPill>
                       </TableCell>
                       <TableCell className="text-right font-numeric font-medium">
                         {formatUsd(item.amount_usd)}
@@ -665,39 +664,15 @@ export function StatementDataWorkspace({
                   ))}
                 </TableBody>
               </Table>
-
-              <div className="mt-4 flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <Muted>
-                  Showing {(txPage - 1) * TX_PAGE_SIZE + 1}
-                  {" - "}
-                  {Math.min(txPage * TX_PAGE_SIZE, txTotal)} of {txTotal}
-                </Muted>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={txPage <= 1 || txLoading}
-                    onClick={() => loadTransactions(txPage - 1)}
-                  >
-                    <ChevronLeft className="size-4" />
-                    Previous
-                  </Button>
-                  <TextSmall className="min-w-16 text-center text-muted-foreground">
-                    {txPage} / {txPageCount}
-                  </TextSmall>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={txPage >= txPageCount || txLoading}
-                    onClick={() => loadTransactions(txPage + 1)}
-                  >
-                    Next
-                    <ChevronRight className="size-4" />
-                  </Button>
-                </div>
-              </div>
+              <TableFooterBar
+                className="-mx-3.5 w-[calc(100%+1.75rem)] sm:-mx-4 sm:w-[calc(100%+2rem)]"
+                total={txTotal}
+                page={txPage}
+                pageCount={txPageCount}
+                pageSize={txPageSize}
+                onPageChange={(next) => loadTransactions(next)}
+                onPageSizeChange={setTxPageSize}
+              />
             </>
           )}
         </DashCardContent>

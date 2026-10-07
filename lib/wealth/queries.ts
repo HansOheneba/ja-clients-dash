@@ -529,6 +529,7 @@ export async function saveTrackedHolding(
     ticker: string;
     quantity: number;
     market_value_usd: number | null;
+    original_value_usd?: number | null;
   },
 ): Promise<{ holding: PortfolioHolding; updated: boolean }> {
   const period = await getLatestPeriodForClient(clientId);
@@ -552,10 +553,18 @@ export async function saveTrackedHolding(
       `UPDATE wealth.portfolio_holdings
        SET quantity = $2,
            market_value_usd = COALESCE($3, market_value_usd),
-           investment_name = $4
+           investment_name = $4,
+           original_value_usd = COALESCE($6, original_value_usd)
        WHERE id = $1 AND client_id = $5
        RETURNING ${HOLDING_COLUMNS}`,
-      [match.id, input.quantity, input.market_value_usd, input.investment_name.trim(), clientId],
+      [
+        match.id,
+        input.quantity,
+        input.market_value_usd,
+        input.investment_name.trim(),
+        clientId,
+        input.original_value_usd ?? null,
+      ],
     );
     if (!rows[0]) throw new Error("Could not update holding");
     return { holding: mapHolding(rows[0]), updated: true };
@@ -571,7 +580,7 @@ export async function saveTrackedHolding(
     `INSERT INTO wealth.portfolio_holdings (
       client_id, period_id, bucket, investment_name, ticker, quantity,
       original_value_usd, market_value_usd, sort_order
-    ) VALUES ($1, $2, $3::wealth.portfolio_bucket, $4, $5, $6, 0, $7, $8)
+    ) VALUES ($1, $2, $3::wealth.portfolio_bucket, $4, $5, $6, $7, $8, $9)
     RETURNING ${HOLDING_COLUMNS}`,
     [
       clientId,
@@ -580,6 +589,7 @@ export async function saveTrackedHolding(
       input.investment_name.trim(),
       ticker,
       input.quantity,
+      input.original_value_usd ?? 0,
       input.market_value_usd ?? 0,
       current.length + 1,
     ],

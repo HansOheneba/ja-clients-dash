@@ -23,17 +23,20 @@ function valuesFromSnapshots(snapshots: PortfolioSnapshot[]) {
 export function PortfolioQuickUpdate({
   clientId,
   snapshots,
+  periodEnd,
   onSaved,
   embedded = false,
 }: {
   clientId: string;
   snapshots: PortfolioSnapshot[];
+  periodEnd?: string | null;
   onSaved?: () => void;
   embedded?: boolean;
 }) {
   const [values, setValues] = useState<Record<string, string>>(() =>
     valuesFromSnapshots(snapshots),
   );
+  const [effectiveDate, setEffectiveDate] = useState(periodEnd?.slice(0, 10) ?? "");
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -66,6 +69,7 @@ export function PortfolioQuickUpdate({
           snapshots: snapshotRows,
           auditNote: note.trim() || null,
           quickUpdate: true,
+          effectiveDate: effectiveDate || null,
         }),
       });
       if (!res.ok) {
@@ -108,11 +112,20 @@ export function PortfolioQuickUpdate({
         ))}
       </div>
       <div className="mt-4 flex flex-col gap-1">
-        <Label htmlFor="qv-note">Note (required for audit)</Label>
+        <Label htmlFor="qv-date">Effective date</Label>
+        <Input
+          id="qv-date"
+          type="date"
+          value={effectiveDate}
+          onChange={(e) => setEffectiveDate(e.target.value)}
+        />
+      </div>
+      <div className="mt-4 flex flex-col gap-1">
+        <Label htmlFor="qv-note">Reason for update</Label>
         <Textarea
           id="qv-note"
           rows={2}
-          placeholder="Reason for this update"
+          placeholder="Why these values changed"
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
@@ -120,7 +133,7 @@ export function PortfolioQuickUpdate({
       <div className="mt-4 flex items-center gap-3">
         <Button size="sm" disabled={loading || !note.trim()} onClick={handleSave}>
           {loading ? <Loader2 className="size-4 animate-spin" /> : null}
-          Save values
+          Save changes
         </Button>
         {message ? <Muted className="text-sm">{message}</Muted> : null}
       </div>
