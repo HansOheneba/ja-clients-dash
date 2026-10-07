@@ -2,24 +2,34 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Loader2, Plus, TrendingUp } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowLeftRight,
+  ArrowUp,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Plus,
+  TrendingUp,
+} from "lucide-react";
 
 import { PortfolioHoldingsEditor } from "@/components/advisors/portfolio-holdings-editor";
 import { GenerateReportButton } from "@/components/reports/generate-report-button";
 import { Button } from "@/components/ui/button";
 import {
-  DashCard,
-  DashCardContent,
-  DashCardDescription,
-  DashCardHeader,
-  DashCardTitle,
-} from "@/components/ui/dash-card";
+  BUCKET_DOT,
+  BUCKET_SHORT,
+  FigureField,
+  figureTone,
+  figureToneClass,
+  moneyDisplay,
+  pctDisplay,
+} from "@/components/advisors/statement-figures";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { KpiItem, KpiStrip } from "@/components/ui/kpi-strip";
 import { Select } from "@/components/ui/select";
 import {
-  CategoryPill,
   ColumnLabel,
   Table,
   TableBody,
@@ -29,20 +39,19 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  bucketPillLabel,
-  bucketPillTone,
-  transactionPillTone,
 } from "@/components/ui/table";
-import { Muted, TextSmall } from "@/components/ui/typography";
+import { Muted } from "@/components/ui/typography";
 import {
   ALL_BUCKETS,
   BUCKET_LABELS,
+  formatCompactUsd,
   formatUsd,
   TRANSACTION_TYPE_LABELS,
 } from "@/lib/wealth/constants";
 import {
   MONTH_SHORT,
   periodCoveringMonth,
+  quarterOfMonth,
   yearFromPeriodEnd,
 } from "@/lib/wealth/period-calendar";
 import type {
@@ -103,6 +112,50 @@ function sumField(rows: DraftSnapshot[], key: "previous_value_usd" | "current_va
   return rows.reduce((total, row) => total + Number(row[key] || 0), 0);
 }
 
+const QUARTERS = [
+  { quarter: 1 as const, months: [0, 1, 2] },
+  { quarter: 2 as const, months: [3, 4, 5] },
+  { quarter: 3 as const, months: [6, 7, 8] },
+  { quarter: 4 as const, months: [9, 10, 11] },
+];
+
+function monthIndexFromPeriod(period: StatementPeriod | null): number | null {
+  if (!period) return null;
+  const month = Number(period.period_end.slice(5, 7)) - 1;
+  return Number.isFinite(month) && month >= 0 && month <= 11 ? month : null;
+}
+
+function formatDayMonth(value: string) {
+  return new Date(`${value}T12:00:00`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function txDirection(type: TransactionType, amount: number): {
+  label: string;
+  text: string;
+  className: string;
+  Icon: typeof ArrowUp;
+} {
+  const abs = formatUsd(Math.abs(amount));
+  if (type === "deposit") {
+    return { label: TRANSACTION_TYPE_LABELS[type], text: `+${abs}`, className: "text-emerald-800", Icon: ArrowUp };
+  }
+  if (type === "drawdown") {
+    return { label: TRANSACTION_TYPE_LABELS[type], text: `-${abs}`, className: "text-red-700", Icon: ArrowDown };
+  }
+  if (type === "fee") {
+    return { label: TRANSACTION_TYPE_LABELS[type], text: `-${abs}`, className: "text-amber-800", Icon: ArrowDown };
+  }
+  return {
+    label: TRANSACTION_TYPE_LABELS[type],
+    text: abs,
+    className: "text-foreground",
+    Icon: ArrowLeftRight,
+  };
+}
+
 export function StatementDataWorkspace({
   clientId,
   clientName,
@@ -144,6 +197,10 @@ export function StatementDataWorkspace({
   const selectedPeriod = periods.find((period) => period.id === periodId) ?? null;
   const txPageCount = Math.max(1, Math.ceil(txTotal / txPageSize));
   const [viewYear, setViewYear] = useState(() => yearFromPeriodEnd(selectedPeriod));
+  const [viewQuarter, setViewQuarter] = useState<1 | 2 | 3 | 4>(() => {
+    const month = monthIndexFromPeriod(selectedPeriod);
+    return month == null ? quarterOfMonth(new Date().getMonth()) : quarterOfMonth(month);
+  });
   const lastPeriodId = useRef(periodId);
 
   useEffect(() => {
@@ -163,7 +220,11 @@ export function StatementDataWorkspace({
     if (lastPeriodId.current === periodId) return;
     lastPeriodId.current = periodId;
     const period = periods.find((p) => p.id === periodId);
-    if (period) setViewYear(yearFromPeriodEnd(period));
+    if (period) {
+      setViewYear(yearFromPeriodEnd(period));
+      const month = monthIndexFromPeriod(period);
+      if (month != null) setViewQuarter(quarterOfMonth(month));
+    }
   }, [periodId, periods]);
 
   const loadTransactions = useCallback(
@@ -306,18 +367,37 @@ export function StatementDataWorkspace({
     }
   }
 
+  const holdingsMarket = holdings.reduce((sum, row) => sum + Number(row.market_value_usd || 0), 0);
   const portfolioHref = `/advisors/dashboard/clients/${clientId}?tab=Portfolio`;
+  const openMonth = monthIndexFromPeriod(selectedPeriod);
+  const openQuarter = openMonth == null ? null : quarterOfMonth(openMonth);
+  const visibleMonths = QUARTERS.find((item) => item.quarter === viewQuarter)?.months ?? [0, 1, 2];
+  const periodTitle = selectedPeriod
+    ? `Q${openQuarter} ${yearFromPeriodEnd(selectedPeriod)}`
+    : "Select a month";
+  const periodRange = selectedPeriod
+    ? `${formatDayMonth(selectedPeriod.period_start)} to ${formatDayMonth(selectedPeriod.period_end)}`
+    : null;
 
   return (
-    <div className="flex flex-col gap-5 pb-24">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <TextSmall className="font-semibold">Statement data for {clientName}</TextSmall>
-          <Muted>
+    <div className="flex flex-col gap-8 pb-28">
+      <h2 className="sr-only">Statement for {clientName}</h2>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold tracking-[0.16em] text-brand-primary uppercase">
+            Statement
+          </p>
+          <p className="mt-1 font-heading text-2xl font-semibold tracking-tight text-brand-primary">
+            {periodTitle}
+          </p>
+          {periodRange ? (
+            <p className="mt-0.5 text-sm text-muted-foreground">{periodRange}</p>
+          ) : null}
+          <Muted className="mt-1.5 max-w-xl">
             Enter values for one month at a time. Quarterly and annual PDFs roll those months up.
           </Muted>
         </div>
-        <div className="flex flex-wrap items-start gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link href={portfolioHref}>
             <Button variant="outline" size="sm">
               <TrendingUp className="size-4" />
@@ -334,7 +414,6 @@ export function StatementDataWorkspace({
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Label>Month</Label>
           <div className="flex items-center gap-1">
             <Button
               type="button"
@@ -345,7 +424,9 @@ export function StatementDataWorkspace({
             >
               <ChevronLeft className="size-4" />
             </Button>
-            <TextSmall className="min-w-14 text-center font-medium">{viewYear}</TextSmall>
+            <span className="min-w-14 text-center font-heading text-lg font-semibold tracking-tight text-brand-primary">
+              {viewYear}
+            </span>
             <Button
               type="button"
               variant="ghost"
@@ -356,9 +437,32 @@ export function StatementDataWorkspace({
               <ChevronRight className="size-4" />
             </Button>
           </div>
+          <div className="flex items-center gap-1" role="tablist" aria-label="Quarter">
+            {QUARTERS.map((item) => {
+              const active = item.quarter === viewQuarter;
+              return (
+                <button
+                  key={item.quarter}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setViewQuarter(item.quarter)}
+                  className={cn(
+                    "h-8 rounded-md px-3 text-sm transition-colors",
+                    active
+                      ? "bg-brand-primary/10 font-semibold text-brand-primary"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Q{item.quarter}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-12">
-          {MONTH_SHORT.map((name, monthIndex) => {
+        <div className="flex flex-wrap gap-1" role="tablist" aria-label="Month">
+          {visibleMonths.map((monthIndex) => {
+            const name = MONTH_SHORT[monthIndex];
             const covering = periodCoveringMonth(periods, viewYear, monthIndex);
             const selected = covering?.id === periodId;
             const hasData = Boolean(covering);
@@ -367,14 +471,15 @@ export function StatementDataWorkspace({
               <button
                 key={name}
                 type="button"
+                role="tab"
+                aria-selected={selected}
                 disabled={creatingMonth !== null}
                 onClick={() => selectOrCreateMonth(viewYear, monthIndex)}
                 className={cn(
-                  "flex h-9 items-center justify-center rounded-lg text-sm font-medium transition-colors duration-150",
-                  selected && "bg-primary text-primary-foreground",
-                  !selected && hasData && "bg-muted text-foreground hover:bg-muted/80",
-                  !hasData &&
-                    "border border-dashed border-border text-muted-foreground hover:bg-muted/60",
+                  "flex h-8 min-w-14 items-center justify-center rounded-md px-3 text-sm transition-colors duration-150",
+                  selected && "bg-brand-primary font-medium text-white",
+                  !selected && hasData && "text-foreground hover:bg-muted",
+                  !selected && !hasData && "text-muted-foreground hover:bg-muted/70",
                   creatingMonth !== null && "opacity-70",
                 )}
               >
@@ -392,108 +497,216 @@ export function StatementDataWorkspace({
 
       {message ? <Muted>{message}</Muted> : null}
 
-      <KpiStrip cols={4}>
-        <KpiItem
-          label="Current value"
-          value={formatUsd(totals.current)}
-          change={`Previous ${formatUsd(totals.previous)}`}
-          trend="neutral"
-        />
-        <KpiItem
-          label="Period gain"
-          value={formatUsd(totals.gain)}
-          change={`${totals.periodPct >= 0 ? "+" : ""}${totals.periodPct.toFixed(1)}%`}
-          trend={totals.gain >= 0 ? "up" : totals.gain < 0 ? "down" : "neutral"}
-        />
-        <KpiItem
-          label="Buckets"
-          value={String(ALL_BUCKETS.length)}
-          change="Income through Cash on Account"
-          trend="neutral"
-        />
-        <KpiItem
-          label="Transactions"
-          value={String(txTotal)}
-          change={selectedPeriod ? selectedPeriod.label : "This month"}
-          trend="neutral"
-        />
-      </KpiStrip>
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <article className="rounded-xl border border-border/70 bg-card px-4 py-4">
+          <p className="text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+            Current NAV
+          </p>
+          <p className="mt-2 font-numeric text-2xl font-semibold tracking-tight text-brand-primary">
+            {formatCompactUsd(totals.current)}
+          </p>
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+            <span>Previous {formatCompactUsd(totals.previous)}</span>
+            <span className={cn("font-numeric", figureToneClass(figureTone(totals.periodPct)))}>
+              {totals.periodPct > 0 ? "+" : ""}
+              {totals.periodPct.toFixed(1)}%
+            </span>
+          </p>
+        </article>
+        <article className="rounded-xl border border-border/70 bg-card px-4 py-4">
+          <p className="text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+            Period gain
+          </p>
+          <p className={cn("mt-2 font-numeric text-2xl font-semibold tracking-tight", figureToneClass(figureTone(totals.gain)))}>
+            {formatCompactUsd(totals.gain, true)}
+          </p>
+          <p className="mt-1.5 text-sm text-muted-foreground">vs previous period</p>
+        </article>
+        <article className="rounded-xl border border-border/70 bg-card px-4 py-4">
+          <p className="text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+            Return
+          </p>
+          <p className={cn("mt-2 font-numeric text-2xl font-semibold tracking-tight", figureToneClass(figureTone(totals.periodPct)))}>
+            {totals.periodPct > 0 ? "+" : ""}
+            {totals.periodPct.toFixed(1)}%
+          </p>
+          <p className="mt-1.5 text-sm text-muted-foreground">{periodTitle}</p>
+        </article>
+        <article className="rounded-xl border border-border/70 bg-card px-4 py-4">
+          <p className="text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+            Holdings
+          </p>
+          <p className="mt-2 font-numeric text-2xl font-semibold tracking-tight text-brand-primary">
+            {holdings.length}
+          </p>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {formatCompactUsd(holdingsMarket)} market value
+          </p>
+        </article>
+      </section>
 
-      <DashCard>
-        <DashCardHeader className="mb-3">
+      <section className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <DashCardTitle>Bucket values</DashCardTitle>
-            <DashCardDescription>
-              Previous and current USD for each portfolio bucket in this month.
-            </DashCardDescription>
+            <h3 className="text-[11px] font-semibold tracking-[0.16em] text-brand-primary uppercase">
+              Bucket values
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Portfolio performance by allocation bucket
+            </p>
           </div>
-        </DashCardHeader>
-        <DashCardContent>
-          <Table bleed className="min-w-[880px]">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span>{ALL_BUCKETS.length} buckets</span>
+            {ALL_BUCKETS.map((bucket) => (
+              <span key={bucket} className="inline-flex items-center gap-1.5">
+                <span className={cn("size-1.5 rounded-full", BUCKET_DOT[bucket])} aria-hidden />
+                {BUCKET_SHORT[bucket]}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
+          <Table className="min-w-[960px]">
             <TableHeader>
               <TableRow>
                 <TableHead><ColumnLabel>Bucket</ColumnLabel></TableHead>
-                <TableHead><ColumnLabel>Previous</ColumnLabel></TableHead>
-                <TableHead><ColumnLabel>Current</ColumnLabel></TableHead>
-                <TableHead><ColumnLabel>Period %</ColumnLabel></TableHead>
-                <TableHead><ColumnLabel>YTD %</ColumnLabel></TableHead>
-                <TableHead><ColumnLabel>Inception gain</ColumnLabel></TableHead>
-                <TableHead><ColumnLabel>Inception %</ColumnLabel></TableHead>
-                <TableHead><ColumnLabel>Annualised %</ColumnLabel></TableHead>
+                <TableHead className="text-right"><ColumnLabel align="right">Previous</ColumnLabel></TableHead>
+                <TableHead className="text-right"><ColumnLabel align="right">Current</ColumnLabel></TableHead>
+                <TableHead className="text-right"><ColumnLabel align="right">Period %</ColumnLabel></TableHead>
+                <TableHead className="text-right"><ColumnLabel align="right">YTD %</ColumnLabel></TableHead>
+                <TableHead className="text-right"><ColumnLabel align="right">Inception gain</ColumnLabel></TableHead>
+                <TableHead className="text-right"><ColumnLabel align="right">Inception %</ColumnLabel></TableHead>
+                <TableHead className="text-right"><ColumnLabel align="right">Annualised %</ColumnLabel></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {draft.map((row, index) => (
-                <TableRow key={row.bucket}>
-                  <TableCell>
-                    <CategoryPill tone={bucketPillTone(row.bucket)}>
-                      {bucketPillLabel(row.bucket)}
-                    </CategoryPill>
-                  </TableCell>
-                  {(
-                    [
-                      "previous_value_usd",
-                      "current_value_usd",
-                      "period_change_pct",
-                      "ytd_pct",
-                      "inception_gain_usd",
-                      "inception_pct",
-                      "annualized_return_pct",
-                    ] as const
-                  ).map((key) => (
-                    <TableCell key={key}>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        className="h-8 min-w-[5.5rem] px-2"
-                        value={row[key]}
-                        onChange={(e) => {
-                          const next = [...draft];
-                          next[index] = { ...row, [key]: e.target.value };
-                          setDraft(next);
-                        }}
+              {draft.map((row, index) => {
+                const previous = Number(row.previous_value_usd || 0);
+                const current = Number(row.current_value_usd || 0);
+                const change = current - previous;
+                const previousMoney = moneyDisplay(row.previous_value_usd);
+                const currentMoney = moneyDisplay(row.current_value_usd);
+                const period = pctDisplay(row.period_change_pct);
+                const ytd = pctDisplay(row.ytd_pct);
+                const inceptionGain = moneyDisplay(row.inception_gain_usd, true);
+                const inceptionPct = pctDisplay(row.inception_pct);
+                const annualised = pctDisplay(row.annualized_return_pct);
+                const patch = (
+                  key:
+                    | "previous_value_usd"
+                    | "current_value_usd"
+                    | "period_change_pct"
+                    | "ytd_pct"
+                    | "inception_gain_usd"
+                    | "inception_pct"
+                    | "annualized_return_pct",
+                  value: string,
+                ) => {
+                  setDraft((rows) =>
+                    rows.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, [key]: value } : item,
+                    ),
+                  );
+                };
+                return (
+                  <TableRow key={row.bucket}>
+                    <TableCell>
+                      <span className="inline-flex items-center gap-2 font-medium">
+                        <span className={cn("size-1.5 rounded-full", BUCKET_DOT[row.bucket])} aria-hidden />
+                        {BUCKET_SHORT[row.bucket]}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <FigureField
+                        ariaLabel={`${BUCKET_SHORT[row.bucket]} previous value`}
+                        value={row.previous_value_usd}
+                        display={previousMoney.text}
+                        onChange={(value) => patch("previous_value_usd", value)}
                       />
                     </TableCell>
-                  ))}
-                </TableRow>
-              ))}
+                    <TableCell>
+                      <FigureField
+                        ariaLabel={`${BUCKET_SHORT[row.bucket]} current value`}
+                        value={row.current_value_usd}
+                        display={currentMoney.text}
+                        emphasis="primary"
+                        onChange={(value) => patch("current_value_usd", value)}
+                      />
+                      {previous !== 0 || current !== 0 ? (
+                        <p className={cn("px-1 text-right text-xs font-numeric", figureToneClass(figureTone(change)))}>
+                          {formatCompactUsd(change, true)}
+                        </p>
+                      ) : null}
+                    </TableCell>
+                    <TableCell>
+                      <FigureField
+                        ariaLabel={`${BUCKET_SHORT[row.bucket]} period percent`}
+                        value={row.period_change_pct}
+                        display={period.text}
+                        tone={period.tone}
+                        onChange={(value) => patch("period_change_pct", value)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <FigureField
+                        ariaLabel={`${BUCKET_SHORT[row.bucket]} year to date percent`}
+                        value={row.ytd_pct}
+                        display={ytd.text}
+                        tone={ytd.tone}
+                        onChange={(value) => patch("ytd_pct", value)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <FigureField
+                        ariaLabel={`${BUCKET_SHORT[row.bucket]} inception gain`}
+                        value={row.inception_gain_usd}
+                        display={inceptionGain.text}
+                        tone={inceptionGain.tone}
+                        onChange={(value) => patch("inception_gain_usd", value)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <FigureField
+                        ariaLabel={`${BUCKET_SHORT[row.bucket]} inception percent`}
+                        value={row.inception_pct}
+                        display={inceptionPct.text}
+                        tone={inceptionPct.tone}
+                        onChange={(value) => patch("inception_pct", value)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <FigureField
+                        ariaLabel={`${BUCKET_SHORT[row.bucket]} annualised percent`}
+                        value={row.annualized_return_pct}
+                        display={annualised.text}
+                        tone={annualised.tone}
+                        onChange={(value) => patch("annualized_return_pct", value)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
             <TableFooter>
               <TableRow>
-                <TableCell className="font-medium">
-                  Total <span className="font-semibold tabular-nums">{draft.length}</span>
+                <TableCell className="font-medium">Total</TableCell>
+                <TableCell className="text-right font-numeric text-muted-foreground">
+                  {formatCompactUsd(totals.previous)}
                 </TableCell>
-                <TableCell className="font-numeric font-medium">{formatUsd(totals.previous)}</TableCell>
-                <TableCell className="font-numeric font-medium">{formatUsd(totals.current)}</TableCell>
-                <TableCell className="font-numeric text-muted-foreground">
-                  {totals.periodPct >= 0 ? "+" : ""}{totals.periodPct.toFixed(1)}%
+                <TableCell className="text-right font-numeric font-semibold text-brand-primary">
+                  {formatCompactUsd(totals.current)}
+                </TableCell>
+                <TableCell className={cn("text-right font-numeric", figureToneClass(figureTone(totals.periodPct)))}>
+                  {totals.periodPct > 0 ? "+" : ""}
+                  {totals.periodPct.toFixed(1)}%
                 </TableCell>
                 <TableCell colSpan={4} />
               </TableRow>
             </TableFooter>
           </Table>
-        </DashCardContent>
-      </DashCard>
+        </div>
+        <Muted>Select a figure to edit it. The period change under current value is calculated from previous and current.</Muted>
+      </section>
 
       <PortfolioHoldingsEditor
         clientId={clientId}
@@ -503,33 +716,39 @@ export function StatementDataWorkspace({
         onMessage={setMessage}
       />
 
-      <DashCard>
-        <DashCardHeader className="mb-0 flex-row items-center justify-between gap-3 space-y-0">
+      <section className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <DashCardTitle>Transactions</DashCardTitle>
-            <DashCardDescription>
+            <h3 className="text-[11px] font-semibold tracking-[0.16em] text-brand-primary uppercase">
+              Transactions
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
               {selectedPeriod
-                ? `Recorded during ${selectedPeriod.label}`
+                ? `Activity recorded during ${selectedPeriod.label}`
                 : "Select a month to view transactions."}
-            </DashCardDescription>
+            </p>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowTxForm((open) => !open)}
-          >
-            <Plus className="size-4" />
-            Record transaction
-            <ChevronDown
-              className={cn("size-4 transition-transform", showTxForm && "rotate-180")}
-            />
-          </Button>
-        </DashCardHeader>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground">
+              {txTotal} {txTotal === 1 ? "transaction" : "transactions"}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowTxForm((open) => !open)}
+            >
+              <Plus className="size-4" />
+              Record transaction
+              <ChevronDown
+                className={cn("size-4 transition-transform", showTxForm && "rotate-180")}
+              />
+            </Button>
+          </div>
+        </div>
 
         {showTxForm ? (
-          <DashCardContent className="border-t border-border/60 pt-4">
-            <form onSubmit={addTransaction} className="flex flex-col gap-3">
+          <form onSubmit={addTransaction} className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-4">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="tx-date">Date</Label>
@@ -609,77 +828,79 @@ export function StatementDataWorkspace({
                 </Button>
               </div>
             </form>
-          </DashCardContent>
         ) : null}
 
-        <DashCardContent className={cn(showTxForm && "border-t border-border/60 pt-4")}>
-          {!periodId ? (
-            <Muted>Pick a month to record and review transactions.</Muted>
-          ) : txLoading ? (
-            <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Loading transactions...
-            </div>
-          ) : txRows.length === 0 ? (
-            <Muted>No transactions recorded for this period yet.</Muted>
-          ) : (
-            <>
-              <Table bleed>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead><ColumnLabel>Date</ColumnLabel></TableHead>
-                    <TableHead><ColumnLabel>Description</ColumnLabel></TableHead>
-                    <TableHead><ColumnLabel>Bucket</ColumnLabel></TableHead>
-                    <TableHead><ColumnLabel>Type</ColumnLabel></TableHead>
-                    <TableHead className="text-right"><ColumnLabel align="right">Amount</ColumnLabel></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {txRows.map((item) => (
+        {!periodId ? (
+          <Muted>Pick a month to record and review transactions.</Muted>
+        ) : txLoading ? (
+          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            Loading transactions...
+          </div>
+        ) : txRows.length === 0 ? (
+          <Muted>No transactions recorded for this period yet.</Muted>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
+            <Table className="min-w-[720px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead><ColumnLabel>Date</ColumnLabel></TableHead>
+                  <TableHead><ColumnLabel>Description</ColumnLabel></TableHead>
+                  <TableHead><ColumnLabel>Bucket</ColumnLabel></TableHead>
+                  <TableHead><ColumnLabel>Type</ColumnLabel></TableHead>
+                  <TableHead className="text-right"><ColumnLabel align="right">Amount</ColumnLabel></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {txRows.map((item) => {
+                  const direction = txDirection(item.transaction_type, item.amount_usd);
+                  const DirectionIcon = direction.Icon;
+                  return (
                     <TableRow key={item.id}>
                       <TableCell className="text-muted-foreground">
                         {formatStatementDate(item.occurred_on)}
                       </TableCell>
-                      <TableCell className="max-w-[16rem] truncate font-medium">
+                      <TableCell className="max-w-[18rem] whitespace-normal font-medium">
                         {item.description}
                       </TableCell>
                       <TableCell>
                         {item.bucket ? (
-                          <CategoryPill tone={bucketPillTone(item.bucket)}>
-                            {bucketPillLabel(item.bucket)}
-                          </CategoryPill>
+                          <span className="inline-flex items-center gap-2">
+                            <span className={cn("size-1.5 rounded-full", BUCKET_DOT[item.bucket])} aria-hidden />
+                            {BUCKET_SHORT[item.bucket]}
+                          </span>
                         ) : (
                           <span className="text-muted-foreground">Unassigned</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        <CategoryPill tone={transactionPillTone(item.transaction_type)}>
-                          {TRANSACTION_TYPE_LABELS[item.transaction_type]}
-                        </CategoryPill>
+                        <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold tracking-wide uppercase", direction.className)}>
+                          <DirectionIcon className="size-3" aria-hidden />
+                          {direction.label}
+                        </span>
                       </TableCell>
-                      <TableCell className="text-right font-numeric font-medium">
-                        {formatUsd(item.amount_usd)}
+                      <TableCell className={cn("text-right font-numeric font-medium", direction.className)}>
+                        {direction.text}
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <TableFooterBar
-                className="-mx-3.5 w-[calc(100%+1.75rem)] sm:-mx-4 sm:w-[calc(100%+2rem)]"
-                total={txTotal}
-                page={txPage}
-                pageCount={txPageCount}
-                pageSize={txPageSize}
-                onPageChange={(next) => loadTransactions(next)}
-                onPageSizeChange={setTxPageSize}
-              />
-            </>
-          )}
-        </DashCardContent>
-      </DashCard>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            <TableFooterBar
+              total={txTotal}
+              page={txPage}
+              pageCount={txPageCount}
+              pageSize={txPageSize}
+              onPageChange={(next) => loadTransactions(next)}
+              onPageSizeChange={setTxPageSize}
+            />
+          </div>
+        )}
+      </section>
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 px-4 py-3 backdrop-blur-sm sm:px-6">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background px-4 py-3 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <input
               type="checkbox"
@@ -687,12 +908,23 @@ export function StatementDataWorkspace({
               onChange={(e) => setNotify(e.target.checked)}
               className="size-4 accent-primary"
             />
-            Email the client when saving
+            Email client when saved
           </label>
-          <Button onClick={saveStatementData} disabled={saving || !periodId}>
-            {saving ? <Loader2 className="size-4 animate-spin" /> : null}
-            Save statement data
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            {message ? <span className="text-sm text-muted-foreground">{message}</span> : null}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onChanged(periodId)}
+              disabled={saving || !periodId}
+            >
+              Cancel
+            </Button>
+            <Button onClick={saveStatementData} disabled={saving || !periodId}>
+              {saving ? <Loader2 className="size-4 animate-spin" /> : null}
+              Save statement data
+            </Button>
+          </div>
         </div>
       </div>
     </div>

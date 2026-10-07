@@ -97,9 +97,9 @@ export default function ClientStatementDataPage() {
     <div className="flex flex-col gap-6 px-4 py-6 sm:px-6">
       <Link
         href={`/advisors/dashboard/clients/${client.id}`}
-        className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex w-fit items-center gap-2 font-heading text-xl font-semibold tracking-tight text-brand-primary transition-opacity hover:opacity-80 sm:text-2xl"
       >
-        <ArrowLeft className="size-4" />
+        <ArrowLeft className="size-4 shrink-0" />
         {client.full_name}
       </Link>
 

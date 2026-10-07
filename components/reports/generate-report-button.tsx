@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, FileText, Loader2 } from "lucide-react";
+import { ChevronDown, Eye, FileText, Loader2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +35,28 @@ const KIND_ACTION: Record<ReportKind, string> = {
   annual: "Generate annual",
 };
 
+type ReadyReport = {
+  id: string;
+  title: string;
+};
+
+function ReportPreviewLink({ report }: { report: ReadyReport }) {
+  return (
+    <div className="flex flex-col items-start gap-1.5">
+      <p className="text-xs text-muted-foreground">{report.title} is ready.</p>
+      <a
+        href={`/api/reports/${report.id}/download?inline=1`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+      >
+        <Eye className="size-4" />
+        Preview
+      </a>
+    </div>
+  );
+}
+
 export function GenerateReportButton({
   clientId,
   periodId,
@@ -43,11 +66,13 @@ export function GenerateReportButton({
   compact = false,
 }: Props) {
   const [loading, setLoading] = useState<ReportKind | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [ready, setReady] = useState<ReadyReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleGenerate(kind: ReportKind) {
     setLoading(kind);
-    setMessage(null);
+    setReady(null);
+    setError(null);
     try {
       const res = await fetch("/api/reports/generate", {
         method: "POST",
@@ -56,10 +81,18 @@ export function GenerateReportButton({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Generation failed");
-      if (!compact) setMessage(`${data.title ?? "Report"} is ready.`);
-      window.dispatchEvent(new CustomEvent("ja:report-generated"));
+      const title = typeof data.title === "string" ? data.title : "Report";
+      if (typeof data.id === "string") {
+        setReady({ id: data.id, title });
+      }
+      window.dispatchEvent(
+        new CustomEvent("ja:report-generated", {
+          detail:
+            compact && typeof data.id === "string" ? { id: data.id, title } : null,
+        }),
+      );
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Generation failed");
+      setError(err instanceof Error ? err.message : "Generation failed");
     } finally {
       setLoading(null);
     }
@@ -69,7 +102,7 @@ export function GenerateReportButton({
 
   if (kind) {
     return (
-      <div className={className}>
+      <div className={cn("flex flex-col items-start gap-2", className)}>
         <Button
           size="sm"
           variant={buttonVariant}
@@ -79,15 +112,14 @@ export function GenerateReportButton({
           {busy ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
           {KIND_ACTION[kind]}
         </Button>
-        {message ? (
-          <p className="mt-2 text-xs text-destructive">{message}</p>
-        ) : null}
+        {ready && !compact ? <ReportPreviewLink report={ready} /> : null}
+        {error ? <p className="text-xs text-destructive">{error}</p> : null}
       </div>
     );
   }
 
   return (
-    <div className={className}>
+    <div className={cn("flex flex-col items-start gap-2", className)}>
       <DropdownMenu>
         <DropdownMenuTrigger
           disabled={busy || !clientId}
@@ -119,13 +151,8 @@ export function GenerateReportButton({
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
-      {message ? (
-        <p
-          className={`mt-2 text-xs ${message.includes("ready") ? "text-muted-foreground" : "text-destructive"}`}
-        >
-          {message}
-        </p>
-      ) : null}
+      {ready ? <ReportPreviewLink report={ready} /> : null}
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

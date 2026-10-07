@@ -2,15 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { FileWarning } from "lucide-react";
+import { Eye, FileWarning } from "lucide-react";
 
 import { GenerateReportButton } from "@/components/reports/generate-report-button";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Muted, TextSmall } from "@/components/ui/typography";
 import { statementKindTitle } from "@/lib/wealth/period-calendar";
 import type { OutstandingReport } from "@/lib/wealth/wm-types";
 
 export function OutstandingReportsNotice({ clientId }: { clientId?: string }) {
   const [items, setItems] = useState<OutstandingReport[]>([]);
+  const [justGenerated, setJustGenerated] = useState<{ id: string; title: string } | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     const url = clientId
@@ -23,7 +28,13 @@ export function OutstandingReportsNotice({ clientId }: { clientId?: string }) {
 
   useEffect(() => {
     load();
-    const handler = () => load();
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string; title?: string } | null>).detail;
+      if (detail?.id) {
+        setJustGenerated({ id: detail.id, title: detail.title ?? "Report" });
+      }
+      load();
+    };
     window.addEventListener("ja:report-generated", handler);
     return () => window.removeEventListener("ja:report-generated", handler);
   }, [load]);
@@ -42,15 +53,38 @@ export function OutstandingReportsNotice({ clientId }: { clientId?: string }) {
     }));
   }, [items]);
 
-  if (groups.length === 0) return null;
+  if (groups.length === 0 && !justGenerated) return null;
 
   const clientCount = groups.length;
   const heading = clientId
     ? "Statement PDFs still to generate"
     : `${clientCount} client${clientCount === 1 ? "" : "s"} need a statement generated`;
 
+  const readyPreview = justGenerated ? (
+    <div className="flex flex-col gap-2 rounded-lg border border-border/50 bg-background/70 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <TextSmall className="font-medium">{justGenerated.title} is ready.</TextSmall>
+        <Muted className="text-[13px]">Open the PDF in a new tab.</Muted>
+      </div>
+      <a
+        href={`/api/reports/${justGenerated.id}/download?inline=1`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+      >
+        <Eye className="size-4" />
+        Preview
+      </a>
+    </div>
+  ) : null;
+
+  if (groups.length === 0) {
+    return <div className="flex flex-col gap-3">{readyPreview}</div>;
+  }
+
   return (
     <div className="rounded-(--radius-card) border border-brand-accent/35 bg-brand-accent/8 p-5">
+      {readyPreview ? <div className="mb-3">{readyPreview}</div> : null}
       <div className="mb-3 flex items-start gap-2.5">
         <FileWarning className="mt-0.5 size-4 shrink-0 text-brand-accent" />
         <div>

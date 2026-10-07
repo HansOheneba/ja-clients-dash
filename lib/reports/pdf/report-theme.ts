@@ -3,8 +3,8 @@ import { StyleSheet } from "@react-pdf/renderer";
 export const REPORT_DOCUMENT_TITLE = "Investment Report";
 export const REPORT_COVER_TITLE = "Your Investment Report";
 
-/** Base pages: cover, disclaimer, overview, allocation, transactions, exec, performance x3, back cover */
-export const REPORT_BASE_PAGES = 10;
+/** Base pages: cover, disclaimer, overview, allocation, transactions, performance x3, back cover */
+export const REPORT_BASE_PAGES = 9;
 
 export const FIRM_ADDRESS =
   "WC L, 190 Elgin Avenue, George Town, Grand Cayman, Cayman Islands, KY-1 9008";
@@ -23,8 +23,15 @@ export const colors = {
 
 export const fonts = {
   heading: "Playfair Display",
-  body: "Playfair Display",
+  body: "Aktiv Grotesk",
 };
+
+/** Left rail for client, reference, and client number. Content stays to the right of it. */
+export const PAGE_EDGE_LEFT = 32;
+export const PAGE_EDGE_RIGHT = 34;
+export const PAGE_RAIL_WIDTH = 156;
+export const PAGE_RAIL_GAP = 18;
+export const PAGE_CONTENT_LEFT = PAGE_EDGE_LEFT + PAGE_RAIL_WIDTH + PAGE_RAIL_GAP;
 
 export const reportStyles = StyleSheet.create({
   page: {
@@ -38,12 +45,20 @@ export const reportStyles = StyleSheet.create({
   },
   pageLandscape: {
     backgroundColor: colors.page,
-    paddingTop: 76,
-    paddingBottom: 52,
-    paddingHorizontal: 36,
+    paddingTop: 22,
+    paddingBottom: 68,
+    paddingLeft: PAGE_CONTENT_LEFT,
+    paddingRight: PAGE_EDGE_RIGHT,
     fontFamily: fonts.body,
     fontSize: 9,
     color: colors.ink,
+  },
+  clientRail: {
+    position: "absolute",
+    top: 26,
+    left: PAGE_EDGE_LEFT,
+    width: PAGE_RAIL_WIDTH,
+    bottom: 58,
   },
   coverPage: {
     backgroundColor: colors.navy,
@@ -132,28 +147,17 @@ export const reportStyles = StyleSheet.create({
   },
   pageTitleLandscape: {
     fontFamily: fonts.heading,
-    fontSize: 20,
+    fontSize: 22,
     color: colors.gold,
-    marginBottom: 8,
-  },
-  pageHeaderRow: {
-    position: "absolute",
-    top: 22,
-    left: 36,
-    right: 36,
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  pageHeaderMeta: {
-    width: 148,
-    paddingTop: 6,
-    paddingRight: 10,
-    gap: 2,
+    marginTop: 6,
+    marginBottom: 10,
   },
   pageHeaderLine: {
     fontSize: 8,
+    lineHeight: 1.35,
     color: colors.ink,
     fontFamily: fonts.body,
+    marginBottom: 1,
   },
   pageHeaderLabel: {
     fontFamily: fonts.body,
@@ -165,27 +169,28 @@ export const reportStyles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomStyle: "dotted",
     borderBottomColor: colors.gold,
-    marginTop: 2,
+    marginTop: 4,
+    marginBottom: 32,
   },
   footerRule: {
     position: "absolute",
-    bottom: 40,
-    left: 36,
-    right: 36,
+    bottom: 56,
+    left: PAGE_EDGE_LEFT,
+    right: PAGE_EDGE_RIGHT,
     borderBottomWidth: 0.6,
     borderBottomColor: "#1a1a1a",
   },
   footerLogo: {
-    width: 84,
+    width: 86,
     height: 15,
   },
   referenceFooter: {
     position: "absolute",
-    bottom: 18,
-    left: 36,
-    right: 36,
+    bottom: 22,
+    left: PAGE_EDGE_LEFT,
+    right: PAGE_EDGE_RIGHT,
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     justifyContent: "space-between",
   },
   referenceFooterPortrait: {
@@ -437,12 +442,12 @@ export const reportStyles = StyleSheet.create({
     flex: 1,
     paddingTop: 40,
     paddingHorizontal: 28,
-    paddingBottom: 52,
+    paddingBottom: 68,
     position: "relative",
   },
   allocationFooterRule: {
     position: "absolute",
-    bottom: 40,
+    bottom: 56,
     left: 28,
     right: 28,
     borderBottomWidth: 0.6,
@@ -450,7 +455,7 @@ export const reportStyles = StyleSheet.create({
   },
   allocationFooter: {
     position: "absolute",
-    bottom: 16,
+    bottom: 22,
     left: 28,
     right: 28,
     flexDirection: "row",
@@ -494,19 +499,22 @@ export const reportStyles = StyleSheet.create({
     fontFamily: fonts.body,
     paddingVertical: 6,
   },
+  disclaimerColumn: {
+    paddingTop: 22,
+  },
   disclaimerTitle: {
     fontFamily: fonts.body,
-    fontSize: 9,
-    fontWeight: 600,
+    fontWeight: 400,
+    fontSize: 9.5,
     color: colors.ink,
-    marginTop: 8,
-    marginBottom: 10,
+    marginBottom: 20,
   },
-  disclaimerBody: {
+  disclaimerParagraph: {
     fontFamily: fonts.body,
-    fontSize: 8,
-    lineHeight: 1.55,
-    color: "#444444",
+    fontSize: 9.5,
+    lineHeight: 1.48,
+    color: "#222222",
+    marginBottom: 14,
     textAlign: "justify",
   },
 });

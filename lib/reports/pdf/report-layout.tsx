@@ -48,26 +48,22 @@ export function ReportPageShell({
 }) {
   return (
     <Page size="A4" orientation="landscape" style={reportStyles.pageLandscape}>
-      <View style={reportStyles.pageHeaderRow} fixed>
-        <View style={reportStyles.pageHeaderMeta}>
-          <Text style={reportStyles.pageHeaderLine}>
-            <Text style={reportStyles.pageHeaderLabel}>Client: </Text>
-            {clientName}
-          </Text>
-          <Text style={reportStyles.pageHeaderLine}>
-            <Text style={reportStyles.pageHeaderLabel}>Our Ref: </Text>
-            {reference}
-          </Text>
-          <Text style={reportStyles.pageHeaderLine}>
-            <Text style={reportStyles.pageHeaderLabel}>Client Number: </Text>
-            {clientNumber}
-          </Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          {pageTitle ? <Text style={reportStyles.pageTitleLandscape}>{pageTitle}</Text> : null}
-          <View style={reportStyles.titleRule} />
-        </View>
+      <View style={reportStyles.clientRail} fixed>
+        <Text style={reportStyles.pageHeaderLine}>
+          <Text style={reportStyles.pageHeaderLabel}>Client: </Text>
+          {clientName}
+        </Text>
+        <Text style={reportStyles.pageHeaderLine}>
+          <Text style={reportStyles.pageHeaderLabel}>Our Ref: </Text>
+          {reference}
+        </Text>
+        <Text style={reportStyles.pageHeaderLine}>
+          <Text style={reportStyles.pageHeaderLabel}>Client Number: </Text>
+          {clientNumber}
+        </Text>
       </View>
+      {pageTitle ? <Text style={reportStyles.pageTitleLandscape}>{pageTitle}</Text> : null}
+      <View style={reportStyles.titleRule} />
       <View>{children}</View>
       <View style={reportStyles.footerRule} fixed />
       <ReferenceFooter pageNumber={pageNumber} />

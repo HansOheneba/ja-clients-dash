@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
-  DashCard,
-  DashCardContent,
-  DashCardDescription,
-  DashCardHeader,
-  DashCardTitle,
-} from "@/components/ui/dash-card";
+  BUCKET_DOT,
+  FigureField,
+  figureTone,
+  figureToneClass,
+  moneyDisplay,
+} from "@/components/advisors/statement-figures";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import {
@@ -23,8 +23,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Muted, TextSmall } from "@/components/ui/typography";
-import { BUCKET_LABELS, formatUsd, HOLDINGS_BUCKETS } from "@/lib/wealth/constants";
+import { BUCKET_LABELS, formatCompactUsd, HOLDINGS_BUCKETS } from "@/lib/wealth/constants";
 import type { PortfolioBucket, PortfolioHolding } from "@/lib/wealth/types";
+import { cn } from "@/lib/utils";
 
 type DraftHolding = {
   localId: string;
@@ -79,6 +80,26 @@ function rowMarket(row: DraftHolding): number {
   const quantity = Number(row.quantity);
   if (row.livePrice != null && quantity > 0) return quantity * row.livePrice;
   return Number(row.market_value_usd || 0);
+}
+
+function quantityDisplay(raw: string): string {
+  if (raw.trim() === "") return "n/a";
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return raw;
+  return value.toLocaleString("en-US", { maximumFractionDigits: 4 });
+}
+
+function groupedHoldings(rows: DraftHolding[]) {
+  const order: PortfolioBucket[] = [...HOLDINGS_BUCKETS];
+  for (const row of rows) {
+    if (!order.includes(row.bucket)) order.push(row.bucket);
+  }
+  return order
+    .map((bucket) => ({
+      bucket,
+      rows: rows.filter((row) => row.bucket === bucket),
+    }))
+    .filter((group) => group.rows.length > 0);
 }
 
 function formatUnitPrice(value: number) {
@@ -237,253 +258,297 @@ export function PortfolioHoldingsEditor({
     }
   }
 
+  const groups = groupedHoldings(draft);
+  const gainTone = figureTone(totals.gain);
+
   return (
-    <DashCard>
-      <DashCardHeader className="mb-0 flex-row items-start justify-between gap-3 space-y-0">
+    <section className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <DashCardTitle>Portfolio holdings</DashCardTitle>
-          <DashCardDescription>
-            Enter the ticker and how many shares or units the client holds. Market value is the
-            quantity times the live price, and that position is what shows on the portfolio.
-          </DashCardDescription>
+          <h3 className="text-[11px] font-semibold tracking-[0.16em] text-brand-primary uppercase">
+            Portfolio holdings
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Investments currently held across the client&apos;s portfolios
+          </p>
         </div>
         <Button type="button" size="sm" onClick={saveHoldings} disabled={saving || !periodId}>
           {saving ? <Loader2 className="size-4 animate-spin" /> : null}
           Save holdings
         </Button>
-      </DashCardHeader>
+      </div>
 
-      <DashCardContent className="flex flex-col gap-4 pt-4">
-        {!periodId ? (
-          <Muted>Select a statement period to add holdings.</Muted>
-        ) : (
-          <>
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="flex flex-col gap-1.5">
-                <TextSmall className="font-medium">Add to bucket</TextSmall>
+      {!periodId ? (
+        <Muted>Select a statement period to add holdings.</Muted>
+      ) : (
+        <>
+          {draft.length > 0 ? (
+            <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
+              <span>
+                <span className="font-numeric font-medium text-foreground">{draft.length}</span>{" "}
+                {draft.length === 1 ? "holding" : "holdings"}
+              </span>
+              <span>
+                <span className="font-numeric font-medium text-brand-primary">
+                  {formatCompactUsd(totals.market)}
+                </span>{" "}
+                market value
+              </span>
+              <span>
+                <span className="font-numeric text-foreground">{formatCompactUsd(totals.original)}</span>{" "}
+                cost basis
+              </span>
+              <span className={cn("font-numeric", figureToneClass(gainTone))}>
+                {formatCompactUsd(totals.gain, true)} unrealised
+              </span>
+            </p>
+          ) : null}
+
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-col gap-1.5">
+              <TextSmall className="font-medium">Add to portfolio</TextSmall>
+              <Select
+                value={addBucket}
+                onChange={(e) => setAddBucket(e.target.value as PortfolioBucket)}
+                className="min-w-48"
+              >
+                {HOLDINGS_BUCKETS.map((bucket) => (
+                  <option key={bucket} value={bucket}>
+                    {BUCKET_LABELS[bucket]}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setDraft((rows) => [...rows, newDraftRow(addBucket)])}
+            >
+              <Plus className="size-4" />
+              Add holding
+            </Button>
+          </div>
+
+          {draft.length === 0 ? (
+            <Muted>No holdings yet. Add a ticker and quantity for each position.</Muted>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border/70 bg-card">
+              <Table className="min-w-[820px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead><ColumnLabel>Investment</ColumnLabel></TableHead>
+                    <TableHead className="text-right"><ColumnLabel align="right">Quantity</ColumnLabel></TableHead>
+                    <TableHead className="text-right"><ColumnLabel align="right">Cost basis</ColumnLabel></TableHead>
+                    <TableHead className="text-right"><ColumnLabel align="right">Market value</ColumnLabel></TableHead>
+                    <TableHead className="w-10" />
+                    <TableHead className="w-10" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {groups.map((group) => (
+                    <GroupRows
+                      key={group.bucket}
+                      bucket={group.bucket}
+                      rows={group.rows}
+                      onUpdate={updateRow}
+                      onRemove={removeRow}
+                      onRefresh={(row) =>
+                        void refreshPrice(
+                          row.localId,
+                          row.ticker.trim().toUpperCase(),
+                          Number(row.quantity),
+                        )
+                      }
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          <TextSmall className="text-muted-foreground">
+            Leave quantity blank for a private holding and enter its market value directly.
+            Cost basis is optional and is the amount originally invested.
+          </TextSmall>
+        </>
+      )}
+    </section>
+  );
+}
+
+function GroupRows({
+  bucket,
+  rows,
+  onUpdate,
+  onRemove,
+  onRefresh,
+}: {
+  bucket: PortfolioBucket;
+  rows: DraftHolding[];
+  onUpdate: (localId: string, patch: Partial<DraftHolding>) => void;
+  onRemove: (localId: string) => void;
+  onRefresh: (row: DraftHolding) => void;
+}) {
+  return (
+    <>
+      <TableRow className="bg-muted/40 hover:bg-muted/40">
+        <TableCell colSpan={6}>
+          <span className="inline-flex items-center gap-2 text-[11px] font-semibold tracking-[0.14em] text-brand-primary uppercase">
+            <span className={cn("size-1.5 rounded-full", BUCKET_DOT[bucket])} aria-hidden />
+            {BUCKET_LABELS[bucket]}
+          </span>
+          <span className="ml-3 text-xs font-normal tracking-normal text-muted-foreground normal-case">
+            {rows.length} {rows.length === 1 ? "holding" : "holdings"}
+          </span>
+        </TableCell>
+      </TableRow>
+      {rows.map((row) => {
+        const market = rowMarket(row);
+        const cost = Number(row.original_value_usd || 0);
+        const gain = cost > 0 ? market - cost : null;
+        const live = row.livePrice != null && Number(row.quantity) > 0;
+        const dayDivisor = row.liveChangePct == null ? null : 1 + row.liveChangePct / 100;
+        const dayMove =
+          dayDivisor == null || dayDivisor === 0 ? null : market - market / dayDivisor;
+        const costMoney = moneyDisplay(row.original_value_usd);
+        return (
+          <TableRow key={row.localId}>
+            <TableCell className="whitespace-normal">
+              <Input
+                value={row.investment_name}
+                placeholder="Filled from the ticker"
+                aria-label="Investment name"
+                onChange={(e) => onUpdate(row.localId, { investment_name: e.target.value })}
+                className="h-8 border-transparent bg-transparent px-1 text-sm font-medium shadow-none focus-visible:border-input focus-visible:bg-background"
+              />
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <Input
+                  value={row.ticker}
+                  placeholder="AAPL"
+                  aria-label="Ticker"
+                  onChange={(e) =>
+                    onUpdate(row.localId, {
+                      ticker: e.target.value.toUpperCase(),
+                      livePrice: null,
+                      priceStatus: "idle",
+                      priceError: null,
+                    })
+                  }
+                  className="h-7 w-24 border-transparent bg-transparent px-1 font-mono text-xs text-muted-foreground shadow-none focus-visible:border-input focus-visible:bg-background"
+                />
+                <div className="w-40">
                 <Select
-                  value={addBucket}
-                  onChange={(e) => setAddBucket(e.target.value as PortfolioBucket)}
-                  className="min-w-48"
+                  value={row.bucket}
+                  aria-label="Portfolio"
+                  onChange={(e) =>
+                    onUpdate(row.localId, { bucket: e.target.value as PortfolioBucket })
+                  }
+                  className="h-7 border-transparent bg-transparent text-xs text-muted-foreground"
                 >
-                  {HOLDINGS_BUCKETS.map((bucket) => (
-                    <option key={bucket} value={bucket}>
-                      {BUCKET_LABELS[bucket]}
+                  {HOLDINGS_BUCKETS.map((option) => (
+                    <option key={option} value={option}>
+                      {BUCKET_LABELS[option]}
                     </option>
                   ))}
                 </Select>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setDraft((rows) => [...rows, newDraftRow(addBucket)])}
-              >
-                <Plus className="size-4" />
-                Add holding
-              </Button>
-            </div>
-
-            {draft.length === 0 ? (
-              <Muted>No holdings yet. Add a ticker and quantity for each position.</Muted>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead><ColumnLabel>Bucket</ColumnLabel></TableHead>
-                      <TableHead><ColumnLabel>Investment</ColumnLabel></TableHead>
-                      <TableHead><ColumnLabel>Ticker</ColumnLabel></TableHead>
-                      <TableHead className="text-right"><ColumnLabel align="right">Quantity</ColumnLabel></TableHead>
-                      <TableHead className="text-right"><ColumnLabel align="right">Cost basis</ColumnLabel></TableHead>
-                      <TableHead className="text-right"><ColumnLabel align="right">Market value</ColumnLabel></TableHead>
-                      <TableHead className="w-10" />
-                      <TableHead className="w-10" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {draft.map((row) => {
-                      const market = rowMarket(row);
-                      const cost = Number(row.original_value_usd || 0);
-                      const gain = cost > 0 ? market - cost : null;
-                      const live = row.livePrice != null && Number(row.quantity) > 0;
-                      return (
-                        <TableRow key={row.localId}>
-                          <TableCell>
-                            <Select
-                              value={row.bucket}
-                              onChange={(e) =>
-                                updateRow(row.localId, {
-                                  bucket: e.target.value as PortfolioBucket,
-                                })
-                              }
-                              className="min-w-36"
-                            >
-                              {HOLDINGS_BUCKETS.map((bucket) => (
-                                <option key={bucket} value={bucket}>
-                                  {BUCKET_LABELS[bucket]}
-                                </option>
-                              ))}
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={row.investment_name}
-                              placeholder="Filled from the ticker"
-                              onChange={(e) =>
-                                updateRow(row.localId, { investment_name: e.target.value })
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={row.ticker}
-                              placeholder="AAPL"
-                              className="w-28 font-mono"
-                              onChange={(e) =>
-                                updateRow(row.localId, {
-                                  ticker: e.target.value.toUpperCase(),
-                                  livePrice: null,
-                                  priceStatus: "idle",
-                                  priceError: null,
-                                })
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="any"
-                              placeholder="100"
-                              className="w-28 text-right font-numeric"
-                              value={row.quantity}
-                              onChange={(e) =>
-                                updateRow(row.localId, {
-                                  quantity: e.target.value,
-                                  livePrice: null,
-                                  priceStatus: "idle",
-                                  priceError: null,
-                                })
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              className="w-32 text-right font-numeric"
-                              value={row.original_value_usd}
-                              onChange={(e) =>
-                                updateRow(row.localId, { original_value_usd: e.target.value })
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              readOnly={live}
-                              className="w-36 text-right font-numeric"
-                              value={live ? market.toFixed(2) : row.market_value_usd}
-                              onChange={(e) =>
-                                updateRow(row.localId, {
-                                  market_value_usd: e.target.value,
-                                  livePrice: null,
-                                  priceStatus: "idle",
-                                })
-                              }
-                            />
-                            {live ? (
-                              <TextSmall className="mt-1 text-right text-muted-foreground">
-                                {formatUnitPrice(row.livePrice ?? 0)}
-                                {row.liveChangePct != null
-                                  ? ` · ${row.liveChangePct > 0 ? "+" : ""}${row.liveChangePct.toFixed(1)}% today`
-                                  : ""}
-                                {row.quotedCurrency && row.quotedCurrency !== "USD"
-                                  ? ` · from ${row.quotedCurrency}`
-                                  : ""}
-                              </TextSmall>
-                            ) : row.priceError ? (
-                              <TextSmall className="mt-1 text-right text-destructive">
-                                {row.priceError}
-                              </TextSmall>
-                            ) : gain != null ? (
-                              <TextSmall className="mt-1 text-right text-muted-foreground">
-                                {formatUsd(gain, true)} vs cost
-                              </TextSmall>
-                            ) : null}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label="Refresh price"
-                              disabled={!row.ticker.trim() || !(Number(row.quantity) > 0)}
-                              onClick={() =>
-                                void refreshPrice(
-                                  row.localId,
-                                  row.ticker.trim().toUpperCase(),
-                                  Number(row.quantity),
-                                )
-                              }
-                            >
-                              <RefreshCw
-                                className={row.priceStatus === "loading" ? "animate-spin" : ""}
-                              />
-                            </Button>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label="Remove holding"
-                              onClick={() => removeRow(row.localId)}
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-
-            {draft.length > 0 ? (
-              <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#e6ebf2] px-4 py-3 text-[13px]">
-                <span>
-                  Total <span className="font-semibold tabular-nums">{draft.length}</span>
-                </span>
-                <div className="flex flex-wrap gap-4">
-                <span className="font-numeric">
-                  <span className="text-muted-foreground">Cost basis: </span>
-                  {formatUsd(totals.original)}
-                </span>
-                <span className="font-numeric">
-                  <span className="text-muted-foreground">Market total: </span>
-                  {formatUsd(totals.market)}
-                </span>
-                <span className="font-numeric">
-                  <span className="text-muted-foreground">Unrealised: </span>
-                  {formatUsd(totals.gain, true)}
-                </span>
                 </div>
               </div>
-            ) : null}
-
-            <TextSmall className="text-muted-foreground">
-              Leave quantity blank for a private holding and enter its market value directly.
-              Cost basis is optional and is the amount originally invested.
-            </TextSmall>
-          </>
-        )}
-      </DashCardContent>
-    </DashCard>
+            </TableCell>
+            <TableCell>
+              <FigureField
+                ariaLabel="Quantity"
+                value={row.quantity}
+                display={quantityDisplay(row.quantity)}
+                onChange={(value) =>
+                  onUpdate(row.localId, {
+                    quantity: value,
+                    livePrice: null,
+                    priceStatus: "idle",
+                    priceError: null,
+                  })
+                }
+              />
+            </TableCell>
+            <TableCell>
+              <FigureField
+                ariaLabel="Cost basis"
+                value={row.original_value_usd}
+                display={costMoney.text}
+                onChange={(value) => onUpdate(row.localId, { original_value_usd: value })}
+              />
+            </TableCell>
+            <TableCell>
+              {live ? (
+                <div className="px-1 text-right">
+                  <p className="font-numeric text-sm font-semibold text-brand-primary">
+                    {formatCompactUsd(market)}
+                  </p>
+                  {dayMove != null && row.liveChangePct != null ? (
+                    <p className={cn("text-xs font-numeric", figureToneClass(figureTone(row.liveChangePct)))}>
+                      {formatCompactUsd(dayMove, true)}
+                      {` · ${row.liveChangePct > 0 ? "+" : ""}${row.liveChangePct.toFixed(1)}% today`}
+                    </p>
+                  ) : (
+                    <p className="text-xs font-numeric text-muted-foreground">
+                      {formatUnitPrice(row.livePrice ?? 0)}
+                      {row.quotedCurrency && row.quotedCurrency !== "USD"
+                        ? ` · from ${row.quotedCurrency}`
+                        : ""}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <FigureField
+                    ariaLabel="Market value"
+                    value={row.market_value_usd}
+                    display={moneyDisplay(row.market_value_usd).text}
+                    emphasis="primary"
+                    onChange={(value) =>
+                      onUpdate(row.localId, {
+                        market_value_usd: value,
+                        livePrice: null,
+                        priceStatus: "idle",
+                      })
+                    }
+                  />
+                  {row.priceError ? (
+                    <TextSmall className="mt-1 text-right text-destructive">{row.priceError}</TextSmall>
+                  ) : gain != null ? (
+                    <p className={cn("px-1 text-right text-xs font-numeric", figureToneClass(figureTone(gain)))}>
+                      {formatCompactUsd(gain, true)} vs cost
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </TableCell>
+            <TableCell>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Refresh price"
+                disabled={!row.ticker.trim() || !(Number(row.quantity) > 0)}
+                onClick={() => onRefresh(row)}
+              >
+                <RefreshCw className={row.priceStatus === "loading" ? "animate-spin" : ""} />
+              </Button>
+            </TableCell>
+            <TableCell>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Remove holding"
+                onClick={() => onRemove(row.localId)}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </TableCell>
+          </TableRow>
+        );
+      })}
+    </>
   );
 }

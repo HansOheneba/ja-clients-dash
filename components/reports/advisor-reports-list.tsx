@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Download, FileText } from "lucide-react";
+import { Download, Eye, FileText } from "lucide-react";
 
 import { GenerateReportButton } from "@/components/reports/generate-report-button";
 import { OutstandingReportsNotice } from "@/components/reports/outstanding-reports-notice";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import {
   DashCard,
@@ -106,6 +107,15 @@ export function AdvisorReportsList({ clientId }: { clientId?: string }) {
                   Mark sent
                 </Button>
               ) : null}
+              <a
+                href={`${doc.downloadUrl}?inline=1`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-xs")}
+              >
+                <Eye className="size-3.5" />
+                Preview
+              </a>
               <a
                 href={doc.downloadUrl}
                 download

@@ -7,7 +7,7 @@ import { getClientById, getReportById } from "@/lib/wealth/queries";
 import { canAccessClient, getApiSession } from "@/lib/wealth/session";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -26,6 +26,8 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const inline = new URL(request.url).searchParams.get("inline") === "1";
+
     try {
       const signedUrl = await getReportDownloadUrl(report.storage_path);
       return NextResponse.redirect(signedUrl);
@@ -35,10 +37,11 @@ export async function GET(
         report.period_id,
         reportKindFromReference(report.reference),
       );
+      const filename = `${report.reference.replace(/\//g, "-")}.pdf`;
       return new NextResponse(new Uint8Array(buffer), {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${report.reference.replace(/\//g, "-")}.pdf"`,
+          "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${filename}"`,
         },
       });
     }

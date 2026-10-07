@@ -11,9 +11,7 @@ import { ALLOCATION_DESK, JA_REPORT_LOGO, JA_REPORT_LOGO_DARK } from "@/lib/repo
 import { AllocationChart, ValueChart } from "@/lib/reports/pdf/report-charts";
 import {
   BackCoverPage,
-  BulletList,
   CoverPage,
-  KpiBand,
   ReportFootnote,
   ReportPageShell,
   SubsectionTitle,
@@ -21,6 +19,35 @@ import {
 import { REPORT_DOCUMENT_TITLE, reportStyles } from "@/lib/reports/pdf/report-theme";
 
 const NOT_APPLICABLE = "Not applicable";
+
+const DISCLAIMER_PARAGRAPH_STARTS = [
+  "The portfolio valuations, as well as stock market",
+  "Portfolio valuations are based on prices",
+  "The client is requested to check",
+];
+
+function disclaimerParagraphs(body: string): string[] {
+  const normalized = body.replace(/\r\n/g, "\n").trim();
+  if (!normalized) return [];
+
+  if (/\n\s*\n/.test(normalized)) {
+    return normalized
+      .split(/\n\s*\n/)
+      .map((part) => part.replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+  }
+
+  let rest = normalized.replace(/\s+/g, " ");
+  const paragraphs: string[] = [];
+  for (const marker of DISCLAIMER_PARAGRAPH_STARTS) {
+    const index = rest.indexOf(marker);
+    if (index <= 0) continue;
+    paragraphs.push(rest.slice(0, index).trim());
+    rest = rest.slice(index).trim();
+  }
+  if (rest) paragraphs.push(rest);
+  return paragraphs;
+}
 
 function formatTxDate(date: string) {
   return new Date(`${date}T12:00:00`).toLocaleDateString("en-GB", {
@@ -33,44 +60,6 @@ function formatTxDate(date: string) {
 function holdingGainPct(original: number, market: number): number | null {
   if (original <= 0) return null;
   return ((market - original) / original) * 100;
-}
-
-function ClientDetailsGrid({ data }: { data: InvestmentReportData }) {
-  const cityLine = [data.address.city, data.address.region, data.address.postalCode]
-    .filter(Boolean)
-    .join(" ");
-
-  return (
-    <View style={reportStyles.detailGrid}>
-      <View style={reportStyles.detailCol}>
-        <Text style={reportStyles.detailLabel}>Prepared for</Text>
-        <Text style={reportStyles.detailValue}>{data.clientName}</Text>
-        {data.address.line1 ? (
-          <Text style={reportStyles.detailValue}>{data.address.line1}</Text>
-        ) : null}
-        {data.address.line2 ? (
-          <Text style={reportStyles.detailValue}>{data.address.line2}</Text>
-        ) : null}
-        {cityLine ? <Text style={reportStyles.detailValue}>{cityLine}</Text> : null}
-        {data.address.country ? (
-          <Text style={reportStyles.detailValue}>{data.address.country}</Text>
-        ) : null}
-      </View>
-      <View style={reportStyles.detailCol}>
-        <Text style={reportStyles.detailLabel}>Statement</Text>
-        {data.reportKindTitle ? (
-          <Text style={reportStyles.detailValue}>{data.reportKindTitle}</Text>
-        ) : null}
-        <Text style={reportStyles.detailValue}>{data.statementPeriodLabel}</Text>
-        <Text style={reportStyles.detailLabel}>Statement reference</Text>
-        <Text style={reportStyles.detailValue}>{data.reference}</Text>
-        <Text style={reportStyles.detailLabel}>Client reference</Text>
-        <Text style={reportStyles.detailValue}>{data.clientNumber}</Text>
-        <Text style={reportStyles.detailLabel}>Currency</Text>
-        <Text style={reportStyles.detailValue}>{data.currency}</Text>
-      </View>
-    </View>
-  );
 }
 
 function OverviewTable({ data }: { data: InvestmentReportData }) {
@@ -427,46 +416,13 @@ export function InvestmentReportDocument({
         pageNumber={++pageNumber}
         pageTitle="Disclaimer"
       >
-        <Text style={reportStyles.disclaimerTitle}>{data.disclaimerTitle}</Text>
-        <Text style={reportStyles.disclaimerBody}>{data.disclaimerBody}</Text>
-      </ReportPageShell>
-
-      <ReportPageShell
-        {...shellProps}
-        pageNumber={++pageNumber}
-        pageTitle="Executive Summary"
-      >
-        <ClientDetailsGrid data={data} />
-        <KpiBand
-          items={[
-            { label: "Total portfolio value", value: formatUsd(data.totalPortfolioValueUsd) },
-            { label: "Period gain", value: formatUsd(data.periodGainUsd, true) },
-            { label: "Period return (YTD)", value: formatPct(data.periodReturnPct, true) },
-          ]}
-        />
-        <Text style={reportStyles.bodyText}>{data.executiveSummary}</Text>
-        {data.advisor ? (
-          <>
-            <SubsectionTitle>Your wealth manager</SubsectionTitle>
-            <Text style={reportStyles.bodyText}>{data.advisor.fullName}</Text>
-            {data.advisor.title ? (
-              <Text style={reportStyles.muted}>{data.advisor.title}</Text>
-            ) : null}
-            <Text style={reportStyles.bodyText}>{data.advisor.email}</Text>
-            {data.advisor.phone ? (
-              <Text style={reportStyles.bodyText}>{data.advisor.phone}</Text>
-            ) : null}
-          </>
-        ) : null}
-        <SubsectionTitle>Important notices</SubsectionTitle>
-        <BulletList items={data.importantNotices} />
-        <View wrap={false}>
-          <SubsectionTitle>Period performance</SubsectionTitle>
-          <PeriodPerformanceTable data={data} />
-          <ReportFootnote>
-            Percentage change reflects returns on invested capital and excludes uninvested cash on
-            account unless noted. All values in {data.currency}.
-          </ReportFootnote>
+        <View style={reportStyles.disclaimerColumn}>
+          <Text style={reportStyles.disclaimerTitle}>{data.disclaimerTitle}</Text>
+          {disclaimerParagraphs(data.disclaimerBody).map((paragraph) => (
+            <Text key={paragraph.slice(0, 48)} style={reportStyles.disclaimerParagraph}>
+              {paragraph}
+            </Text>
+          ))}
         </View>
       </ReportPageShell>
 

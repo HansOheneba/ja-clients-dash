@@ -49,8 +49,12 @@ const JOHN_DOE_TRANSACTIONS: ReportTransactionRow[] = [
   },
 ];
 
-const DEMO_DISCLAIMER_BODY =
-  "This document has been printed at the client's request and shows the status of the client's portfolio on the date indicated. Portfolio valuations, as well as stock market and currency prices, apply for the time the valuation is printed. Performance is shown purely for information purposes. Past performance should not be considered as a guarantee or indication of future results.";
+const DEMO_DISCLAIMER_BODY = [
+  "This document has been printed at the client's request and shows the status of the client's portfolio on the date indicated. The document has been provided in the format agreed with the client. This valuation does not show all portfolio features and does not contain details of recent transactions. The information provided may only be valid for a limited period and may be out of date at the time the valuation is generated and/or sent out. Only the formal valuation issued by the Group is binding. Positions are reflected according to the reference currency of the client.",
+  "The portfolio valuations, as well as stock market and currency prices, apply for the time the valuation is printed. This valuation does not necessarily reflect the real market conditions under which new transactions might be executed, nor the conditions under which existing transactions might be closed out or liquidated.",
+  "Portfolio valuations are based on prices or net asset values obtained from the Group's usual sources of information, or in special cases information provided directly by the Client. Although prices and net asset values come from sources considered to be reliable, the Group does not guarantee or accept any responsibility for their accuracy. If a valuation is not given, this means that a price could not be determined. The prices shown are not tax value prices. Custodian banks, operations currently under way and any assets under pledge are not specifically indicated. Performance, and appreciation or depreciation in value, is shown purely for information purposes. Past performance should not be considered as a guarantee or indication of future results. This portfolio valuation is for information and is not signed. The Group does not provide any guarantee or accept any responsibility whatsoever as to its accuracy or completeness. Consequently, it expressly disclaims all responsibility for any loss or damage incurred as a result of its dissemination or use.",
+  "The client is requested to check this portfolio valuation and in event of a disagreement, to notify the Group within one month from the date on which this document was communicated by the Group.",
+].join("\n\n");
 
 const JOHN_DOE_GROWTH_HOLDINGS: ReportHoldingsBreakdown = {
   bucket: "growth",
@@ -233,7 +237,7 @@ export function assembleDemoInvestmentReport(
       phone: null,
       title: "Wealth Manager",
     },
-    disclaimerTitle: "Important Notice Regarding Valuations and Performance",
+    disclaimerTitle: "Important Notice Regarding Valuations & Performance",
     disclaimerBody: DEMO_DISCLAIMER_BODY,
     includedSections: [...ALL_REPORT_SECTIONS],
     totalPages: computeReportTotalPages(holdingsBreakdowns.length),
